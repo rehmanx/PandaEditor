@@ -33,12 +33,12 @@ Resources in PandaEditor are 3d models, audio, videos, python modules, shaders e
 The **resources browser** panel displays contents from project path directory.
 To import resources from outside into your current project.
 
-**External resources**
+**External resources**    
 PandaEditor has support to append resources outside of your current project directory.
 Go to **Menu bar > Project > Append External Resources > select a resource directory** to append an external resource directory to your current project, PandaEditor will immediately start monitoring changes in any appended external resource directory.
 
 ### Properties panel.
-Properties panel displays properties of the currently selected editor item, an editor item can be any scene object or editor resource.
+Properties panel displays properties of the currently selected editor item, an editor item can be any scene object or a resource.
 
 ### Object manipulation 
 PandaEditor has bare minimum object manipulation you can add, remove and transform an object in scene view.
