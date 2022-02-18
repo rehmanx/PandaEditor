@@ -1,5 +1,7 @@
 ## A level / scene editor for Panda3d game engine with bare minimum features to provide an editor centric workflow.
 
+![Image]()
+
 ### Features
 1. Object manipulation
 2. Support for runtime user modules 
@@ -46,4 +48,4 @@ Are only executed in runtime mode, all changes made in run time (game mode) are 
 ### Editor Plugins
 Are executed in both editor and game mode.
 
-To create a new user module or editor plugin **Reso
+To create a new user module or editor plugin **Resource browser > (AnyFolder) > Create > UserModule or Editor Plugin.**

@@ -1,5 +1,7 @@
 ## A level / scene editor for Panda3d game engine with bare minimum features to provide an editor centric workflow.
 
+![Image](src/editorImages/01.png)
+
 ### Features
 1. Object manipulation
 2. Support for runtime user modules 
