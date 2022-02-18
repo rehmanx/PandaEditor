@@ -72,11 +72,9 @@ class BaseNp(NodePath):
         return self.properties
 
     def get_ed_rotation(self):
-        val = Math.euler_from_hpr(self.getHpr())
-        return val
+        return self.getHpr()
 
     def set_ed_rotation(self, val):
-        val = Math.hpr_from_euler(val)
         self.setHpr(val)
 
     def set_ed_data(self, data):

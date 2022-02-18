@@ -1,5 +1,10 @@
+import os
+import sys
+import importlib
+import traceback
+
 from panda3d.core import NodePath, Material, DirectionalLight, PointLight
-from panda3d.core import Spotlight, Camera, Vec3, Vec4, BitMask32
+from panda3d.core import Spotlight, Camera, PerspectiveLens, Vec3, Vec4, BitMask32
 from editor.p3d import pModBase, pToolBase
 from editor.project import Project
 from editor.constants import *
@@ -7,12 +12,7 @@ from editor.onSceneUI import OnSceneUI
 from editor.nodes import EdPointLight, EdSpotLight, EdDirectionalLight, ModelNp, EdCameraNp
 from editor.utils import Math
 from editor.utilities import Property, ObjectData, euler_from_hpr
-from editor.assetsHandler import AssetsHandler as ResourceHandler
 from editor.utils.exceptionHandler import try_execute
-
-
-EDITOR_STATE = 0  # editor mode
-GAME_STATE = 1  # play mode
 
 
 class LevelEditor:
@@ -27,19 +27,19 @@ class LevelEditor:
         self.ed_state = EDITOR_STATE
 
         self.runtime_np_parent = None
-        self.level_editor_render = None
-
-        self.__main_camera__ = None
-
-        self.scene_lights = []
-        self.scene_lights_on = False
+        self.scene_render = None
+        self.player_camera = None
+        self.selected_module = None
 
         # gizmos, grid, selection
         self.active_gizmo = None
         self.gizmos_active = False
+        self.scene_lights_on = False
 
         self.user_modules_running = False
-        self.selected_module = False
+
+        self.scene_lights = []  # all scene lights in one repository
+        self.scene_cameras = []  # all scene camera in one repository
 
         self.ed_tools = {}
         self.user_modules = {}
@@ -53,67 +53,89 @@ class LevelEditor:
         self.pending_events = []
 
         # initialize the resource handler
-        ResourceHandler.init(self.panda_app.showbase)
+        # ResourceHandler.init(self.panda_app.showbase)
 
         self.save_file = ""
 
-    '''this method will be called ever frame in editor_state and play_state'''
+    def start(self):
+        self.create_default_project(DEFAULT_PROJECT_PATH)
+
     def update(self):
+        """this method will be called ever frame in editor_state and play_state"""
         pass
 
-    # self.on_scene_ui = OnSceneUI(self, rootP2d=self.panda_app.showbase.edPixel2d)
-    # -------------------------------PROJECT SECTION-----------------------------#
-    def setup_project(self, path):
+    def create_default_project(self, proj_path):
+        wx_main = object_manager.get("WxMain")
+        file_browser = object_manager.get("ProjectBrowser")
+
+        if os.path.exists(proj_path) and os.path.isdir(proj_path):
+            self.create_new_project(proj_path)
+
+            file_browser.build_tree(proj_path)
+            file_browser.Refresh()
+
+            DirectoryEventHandler.on_directory_event()
+
+            wx_main.SetTitle("PandaEditor (Default Project)")
+
+    def create_new_project(self, path):
         if self.user_modules_running is True:
             self.stop_user_modules()
 
-        # self.panda_app.reset()
-        self.start_new_scene()
-
         res = self.project.set_project(path)
         if res is True:
-            success = self.load_all_modules()
-            if success:
-                self.project_set = True
-                return True
+            self.project_set = True
+            self.create_new_scene()
+            return True
         return False
 
-    def open_project(*args):
+    def load_project(self):
         pass
 
-    def start_new_scene(self):
-        print("new scene")
+    # ------------------------------- various scene operations -----------------------------#
+    def create_new_scene(self):
         self.clean_scene()
 
         # holds all geometry procedurally generated or loaded
-        # at run time, it is cleaned on exit from gamemode
+        # at run time, it is cleaned on exit from game-mode
         self.runtime_np_parent = NodePath("GameRender")
         self.runtime_np_parent.reparent_to(self.panda_app.showbase.render)
 
-        self.level_editor_render = NodePath("LevelEditorRender")
-        self.level_editor_render.reparent_to(self.panda_app.showbase.render)
+        self.scene_render = NodePath("LevelEditorRender")
+        self.scene_render.reparent_to(self.panda_app.showbase.render)
 
-        self.__main_camera__ = self.add_camera()
+        self.player_camera = self.add_camera()
+        self.panda_app.showbase.set_player_camera(self.player_camera)
         self.setup_default_scene()
 
     def setup_default_scene(self):
         light = self.add_light("DirectionalLight")
         light.setPos(400, 200, 350)
-        light.setHpr(Math.hpr_from_euler(Vec3(-25, 0, 150)))
+        light.setHpr(Vec3(115, -25, 0))
         light.set_color(Vec4(255, 250, 140, 255))
 
-        self.__main_camera__.setPos(-220, 280, 80)
-        self.__main_camera__.setHpr(Math.hpr_from_euler(Vec3(0, 0, -140)))
+        self.player_camera.setPos(-220, 280, 80)
+        self.player_camera.setHpr(Vec3(218, 0, 0))
 
         obj = self.add_object(CUBE_PATH)
         obj.setScale(0.5)
+        obj.setHpr(90, 90, 0)
 
+        self.toggle_scene_lights()
         obs.trigger("ToggleSceneLights", True)
 
     def clean_scene(self):
+        # clear scene lights
         self.panda_app.showbase.render.clearLight()
         self.scene_lights.clear()
         self.scene_lights_on = False
+        obs.trigger("ToggleSceneLights", False)
+
+        # clear scene cameras
+        self.scene_cameras.clear()
+
+        self.panda_app.selection.deselect_all()
+        self.panda_app.update_gizmo()
 
         for np in self.panda_app.showbase.render.get_children():
             if type(np) == NodePath:
@@ -121,10 +143,29 @@ class LevelEditor:
                     np.getPythonTag(TAG_PICKABLE).on_remove()
                 np.remove_node()
 
-        self.__main_camera__ = None
+        self.player_camera = None
+
+    def load_scene(self):
+        pass
+
+    # ------------------------------- various scene graph operations -----------------------------#
+    def create_runtime_scene_graph(self):
+        for np in self.scene_render.get_children():
+            np.getPythonTag(TAG_PICKABLE).save_data()
+
+    def clean_runtime_scene_modifications(self):
+        # clean scene hierarchy from any objects loaded at runtime
+        for np in self.runtime_np_parent.get_children():
+            if type(np) == NodePath:
+                np.getPythonTag(TAG_PICKABLE).on_remove()
+                np.remove_node()
+
+        for np in self.scene_render.get_children():
+            if type(np) == NodePath:
+                np.getPythonTag(TAG_PICKABLE).restore_data()
 
     # -------------------------------USER MODULES / edTools SECTION-----------------------------#
-    def load_all_modules(self):
+    def load_all_modules(self, modules_paths):
         if self.get_editor_state() == GAME_STATE:
             print("Caution: editor cannot be reloaded in game_state this reload will be delayed until next "
                   "editor_state !")
@@ -132,7 +173,6 @@ class LevelEditor:
             # make sure not to append same function_call twice
             if not self.pending_events.__contains__(self.load_all_modules):
                 self.pending_events.append(self.load_all_modules)
-
             return
 
         # save currently loaded module's data, this data will be reloaded
@@ -155,12 +195,46 @@ class LevelEditor:
         # of this function
         ed_tools = []
 
-        modules = ResourceHandler.USER_MODULES
+        imported_modules = []
 
-        for mod, cls_name in modules:
+        # ---------------import python modules ------------------ #
+        def import_modules():
+            for path in modules_paths:
+                file = path.split("/")[-1]
+                # path = _path
+                # print("LOADED \n FILE--> {0} \n PATH {1} \n".format(file, path))
+
+                mod_name = file.split(".")[0]
+                cls_name_ = mod_name[0].upper() + mod_name[1:]
+
+                # load the module
+                spec = importlib.util.spec_from_file_location(mod_name, path)
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[spec.name] = module
+                spec.loader.exec_module(module)
+
+                imported_modules.append((module, cls_name_))
+
+            return imported_modules
+        # ---------------------------------------------------------------------
+
+        result = try_execute(import_modules)
+
+        if result:
+            print("modules imported successfully...!")
+        else:
+            print("error while importing modules...!")
+            return
+
+        for mod, cls_name in imported_modules:
             if hasattr(mod, cls_name):
                 cls = getattr(mod, cls_name)
-                obj_type = cls.__mro__[1]
+                obj_type = None
+
+                try:
+                    obj_type = cls.__mro__[1]
+                except AttributeError:
+                    pass
 
                 # make sure to load only PModBase and PToolBase object types
                 if obj_type == pModBase.PModBase or obj_type == pToolBase.PToolBase:
@@ -168,11 +242,27 @@ class LevelEditor:
                 else:
                     continue
 
-                # *************************TO:DO ERROR HANDLER************************ #
-                cls_instance = cls(cls_name, self,
-                                   mouseWatcherNode=self.panda_app.showbase.edMouseWatcherNode,
-                                   render=self.runtime_np_parent,
-                                   win=self.panda_app.showbase.ed_win)
+                # instantiate the class and catch any error, mainly from its init method
+                # cls_instance = None
+                try:
+                    cls_instance = cls(cls_name, self,
+                                       mouseWatcherNode=self.panda_app.showbase.ed_mouse_watcher_node,
+                                       render=self.panda_app.showbase.render,
+                                       win=self.panda_app.showbase.ed_win)
+                except Exception as e:
+                    print("unable to instantiate module {0}".format(cls_name))
+                    cls_instance = None
+                    tb_str = traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)
+                    for x in tb_str:
+                        print(x)
+
+                # if there is an error return
+                if cls_instance is None:
+                    print("error while loading modules...!")
+                    self.user_modules.clear()
+                    self.ed_tools.clear()
+                    self.mod_exec_order.clear()
+                    break
 
                 if obj_type == pModBase.PModBase or obj_type == pToolBase.PToolBase:
                     # try restore mod data
@@ -181,156 +271,32 @@ class LevelEditor:
                     self.user_modules[cls_instance.get_name()] = cls_instance
 
                 if obj_type == pModBase.PModBase:
-
-                    # also save modules name according to it's sort order 
+                    # also save modules name according to its sort order
                     _sort = cls_instance.get_sort()
                     if _sort not in self.mod_exec_order.keys():
                         self.mod_exec_order[_sort] = []
 
                     self.mod_exec_order[_sort].append(cls_instance)
 
-                    obs.trigger("OnModuleLoaded", cls_instance)
-
                 elif obj_type == pToolBase.PToolBase:
                     ed_tools.append(cls_instance)
 
-        # finally register editor tools
+        # finally, register editor tools
         self.register_editor_tools(ed_tools)
 
         obs.trigger("UpdatePropertiesPanel")
-        print("user modules loaded successfully")
         return True
 
     def register_editor_tools(self, tools):
-        def register(tool):
-            """registers an editor tool,
-            registering an editor tool involves calling tool's enable method,
-            adding it's unique tab if requested & adding it to level_editor.ed_tools
-            repository"""
-            tool.enable()
-
-            if tool.has_tab_request() and tool.get_tab_request() not in unique_tab_paths:
-                unique_tab = tool.get_tab_request()
-                unique_tab_paths.append(unique_tab)
-                unique_tabs.append(unique_tab[0].split("/")[-1])
-                obs.trigger("RegisterUserTab", unique_tab, tool)
-            else:
-                pass
-
-            self.ed_tools[tool.get_name()] = tool  # save the tool into editor_tools repository
-
-        unique_tabs = []  # name of the requested unique tabs by editor tools
-        unique_tab_paths = []  # names of the the full menu paths of requested unique tabs by ed tools
-
         # register tools
         for tool in tools:
-            register(tool)
-
-        # now refresh user created tabs 
-        obs.trigger("RefreshUserTabs", unique_tabs)
+            tool.enable()
+            self.ed_tools[tool.get_name()] = tool  # save the tool into editor_tools repository
 
     def unregister_editor_tools(self):
         for key in self.ed_tools.keys():
             self.ed_tools[key].Stop()
-        obs.trigger("UnregisterEdTools")
         self.ed_tools.clear()
-
-    def switch_state(self, state):
-        if self.project_set is False:
-            print("project not set")
-            return False
-
-        # make sure argument state is a valid state
-        if state not in (0, 1):
-            print("unknown editor state: {0}".format(state))
-            return
-
-        if state == GAME_STATE:
-            self.enable_game_state()
-
-        elif state == EDITOR_STATE:
-            self.enable_editor_state()
-
-        else:
-            print("undefined editor state {0}".format(state))
-
-    def enable_editor_state(self):
-        print("editor state enabled")
-        self.ed_state = EDITOR_STATE
-        self.stop_user_modules()
-        self.panda_app.bind_key_events()
-
-        # call pending events
-        for function_call in self.pending_events:
-            function_call()
-
-        self.pending_events.clear()
-
-    def enable_game_state(self):
-        print("game state enabled")
-
-        # start by clearing pending events list
-        self.pending_events.clear()
-
-        self.ed_state = GAME_STATE
-        self.panda_app.unbind_key_events()
-        self.panda_app.set_active_gizmo(None)
-        self.start_user_modules()
-
-    def start_user_modules(self):
-        # create runtime scene graph
-        self.create_runtime_scene_graph()
-        self.pre_start_modules_data.clear()
-
-        def _start(i):
-            for mod in self.mod_exec_order[i]:
-                if not mod.is_enabled():
-                    print(mod.get_name(), "is disabled")
-                    return
-
-                # save this module's data in pre_start_user_modules, this
-                # data will be reloaded as soon as user exits from game mode
-                self.save_module_properties(mod, data_obj=self.pre_start_modules_data)
-
-                # start module's update
-                res = mod.Start()
-                if res is False:
-                    return
-
-                # start module's late update
-                mod.StartLateUpdateTask(sort=late_update_sort)
-
-                # append to active modules
-                self.active_user_modules.append(mod)
-
-            return True
-
-        lst = [*self.mod_exec_order.keys()]
-        lst.sort()
-        start = lst[0]
-        stop = lst[len(lst) - 1]
-
-        late_update_sort = stop + 1
-        for i in range(start, stop + 1):
-            res = _start(i)
-            if res is False:
-                break
-            late_update_sort += 1
-
-    def stop_user_modules(self):
-        for mod in self.active_user_modules:
-            mod.Stop()
-
-            # restore runtime values
-            if self.pre_start_modules_data.__contains__(mod.get_name()):
-                self.restore_module_settings(mod, data_object=self.pre_start_modules_data)
-
-        self.pre_start_modules_data.clear()
-        self.active_user_modules.clear()
-        self.clean_runtime_scene_modifications()
-
-        # update ui data
-        obs.trigger("XFormTask")
 
     @staticmethod
     def save_module_properties(module, obj_data=None, data_obj=None):
@@ -363,7 +329,7 @@ class LevelEditor:
             parent_module = module
 
         if not data_object.__contains__(module.get_name()):
-            print("unable to restore object data", module.get_name(), "does not exist !")
+            # print("unable to restore object data", module.get_name(), "does not exist !")
             return
 
         obj_data = data_object[module.get_name()]
@@ -381,22 +347,134 @@ class LevelEditor:
 
         return module
 
-    def create_runtime_scene_graph(self):
-        for np in self.level_editor_render.get_children():
-            np.getPythonTag(TAG_PICKABLE).save_data()
+    # ----------------------------- level editor section ----------------------------- #
+    def switch_state(self, state):
+        if self.project_set is False:
+            print("project not set")
+            return False
 
-    def clean_runtime_scene_modifications(self):
-        # clean scene hierarchy from any objects loaded at runtime
-        for np in self.runtime_np_parent.get_children():
-            if type(np) == NodePath:
-                np.getPythonTag(TAG_PICKABLE).on_remove()
-                np.remove_node()
+        # make sure argument state is a valid state
+        if state not in (0, 1):
+            print("unknown editor state: {0}".format(state))
+            return
 
-        for np in self.level_editor_render.get_children():
-            if type(np) == NodePath:
-                np.getPythonTag(TAG_PICKABLE).restore_data()
+        if state == GAME_STATE:
+            self.enable_game_state()
+
+        elif state == EDITOR_STATE:
+            self.enable_editor_state()
+
+        else:
+            print("undefined editor state {0}".format(state))
+
+    def enable_editor_state(self):
+        print("editor state enabled")
+        self.ed_state = EDITOR_STATE
+        self.stop_user_modules()
+        self.panda_app.bind_key_events()
+
+        # switch camera
+        self.panda_app.showbase.set_ed_dr_camera(self.panda_app.showbase.ed_camera)
+
+        # call pending events
+        for function_call in self.pending_events:
+            function_call()
+
+        self.pending_events.clear()
+
+    def enable_game_state(self):
+        print("game state enabled")
+
+        # start by clearing pending events list
+        self.pending_events.clear()
+
+        # switch camera
+        self.panda_app.showbase.set_ed_dr_camera(self.player_camera)
+
+        self.ed_state = GAME_STATE
+        self.panda_app.unbind_key_events()
+        self.panda_app.set_active_gizmo(None)
+        self.start_user_modules()
+
+    def start_user_modules(self):
+        # create runtime scene graph
+        self.create_runtime_scene_graph()
+        self.pre_start_modules_data.clear()
+
+        def _start(j):
+            for mod in self.mod_exec_order[j]:
+                if not mod.is_enabled():
+                    print(mod.get_name(), "is disabled")
+                    return
+
+                # save this module's data in pre_start_user_modules, this
+                # data will be reloaded as soon as user exits from game mode
+                self.save_module_properties(mod, data_obj=self.pre_start_modules_data)
+
+                # start module's update
+                _res = mod.Start(late_update_sort=late_update_sort)
+                if _res is False:
+                    return
+
+                # append to active runtime user modules
+                self.active_user_modules.append(mod)
+
+            return True
+
+        '''Philosophy of module sort order in PandaEditor'''
+        ''''''
+
+        if len(self.mod_exec_order) == 0:
+            return
+
+        # copy modules execution order keys to a list, you will get a list of ints representing all
+        # sort order
+        lst = [*self.mod_exec_order.keys()]
+
+        # sort the sort order
+        lst.sort()
+
+        # self-explanatory
+        start = lst[0]
+        stop = lst[len(lst) - 1]
+
+        # late updates are executed after all updates have been executed,
+        # the sort order of all updates set in a way, that messenger executes them after updates
+        late_update_sort = stop + 1
+
+        for i in range(start, stop + 1):
+            res = _start(i)
+            if res is False:
+                break
+            late_update_sort += 1
+
+    def stop_user_modules(self):
+        for mod in self.active_user_modules:
+            mod.Stop()
+
+            # restore runtime values
+            if self.pre_start_modules_data.__contains__(mod.get_name()):
+                self.restore_module_settings(mod, data_object=self.pre_start_modules_data)
+
+        self.pre_start_modules_data.clear()
+        self.active_user_modules.clear()
+        self.clean_runtime_scene_modifications()
+
+        # update ui data
+        obs.trigger("XFormTask")
+
+    LIGHT_MAP = {"PointLight": (PointLight, EdPointLight, POINT_LIGHT_MODEL),
+                 "Spotlight": (Spotlight, EdSpotLight, SPOT_LIGHT_MODEL),
+                 "DirectionalLight": (DirectionalLight, EdDirectionalLight, DIR_LIGHT_MODEL)}
+
+    NODE_TYPE_MAP = {"ModelNp": ModelNp,
+                     "DirectionalLight": EdDirectionalLight,
+                     "PointLight": EdPointLight,
+                     "SpotLight": EdSpotLight,
+                     "EdCameraNp": EdCameraNp}
 
     def load_model(self, path, geo=RUN_TIME_GEO, reparent_to_render=True):
+
         if self.user_modules_running and geo is not RUN_TIME_GEO:
             print("only -RUN_TIME_GEO- can be loaded at game mode !")
             return
@@ -410,8 +488,8 @@ class LevelEditor:
                 for child in children:
                     create_python_object(child, tag)
 
-        # TO:DO **INSERT A TRY EXECUTE HERE** # 
-        # TO:DO **REPLACE showbase.loader with a new loader instance** # 
+        # TO:DO **INSERT A TRY EXECUTE HERE** #
+        # TO:DO **REPLACE showbase.loader with a new loader instance** #
 
         np = self.panda_app.showbase.loader.loadModel(path)
         np = ModelNp(np, uid="ModelNp")
@@ -426,17 +504,15 @@ class LevelEditor:
         mat.setDiffuse((1, 1, 1, 1))
         np.setMaterial(mat)
 
-        # reparent only if asked to do so !
+        # parent only if asked to do so !
         if geo == EDITOR_GEO and reparent_to_render:
             np.reparent_to(self.panda_app.showbase.edRender)
 
         elif geo == RUN_TIME_GEO and reparent_to_render:
-            # create_python_object(np, TAG_PICKABLE)
             np.reparent_to(self.runtime_np_parent)
 
         elif geo == SCENE_GEO and reparent_to_render:
-            # create_python_object(np, TAG_PICKABLE)
-            np.reparent_to(self.level_editor_render)
+            np.reparent_to(self.scene_render)
 
         elif geo == GEO_NO_PARENT:
             pass
@@ -448,55 +524,54 @@ class LevelEditor:
 
         return np
 
-    def find(self, model):
-        np = self.level_editor_render.find(model)
-        if np is not None:
-            return np
-        return None
-
-    def set_main_camera(self):
-        pass
-
     def add_camera(self, *args):
+        if len(self.scene_cameras) > 0:
+            return
+
+        # Create lens
+        lens = PerspectiveLens()
+        lens.set_fov(60)
+        lens.setAspectRatio(800 / 600)
+
         # Create camera
         cam_np = NodePath(Camera("Camera"))
+        cam_np.node().setLens(lens)
+        cam_np.node().setCameraMask(GAME_GEO_MASK)
 
         # wrap it into a editor camera
         cam_np = EdCameraNp(cam_np, self, uid="EdCameraNp")
         cam_np.setPythonTag(TAG_PICKABLE, cam_np)
-        cam_np.reparent_to(self.level_editor_render)
+        cam_np.reparent_to(self.scene_render)
 
         # create a handle
         cam_handle = self.panda_app.showbase.loader.loadModel(CAMERA_MODEL)
         cam_handle.setLightOff()
-        cam_handle.show(BitMask32(0))
-        cam_handle.hide(BitMask32(1))
+        cam_handle.show(ED_GEO_MASK)
+        cam_handle.hide(GAME_GEO_MASK)
 
         # re-parent handle to cam_np
         cam_handle.reparent_to(cam_np)
         cam_handle.setScale(2.25)
         cam_np.start_update()
 
+        self.scene_cameras.append(cam_np)
+
         return cam_np
 
     def add_object(self, path):
-        np = self.panda_app.showbase.loader.loadModel(path)
+        np = self.panda_app.showbase.loader.loadModel(path, noCache=True)
         np = ModelNp(np, self, uid="ModelNp")
         np.setPythonTag(TAG_PICKABLE, np)
-        np.reparent_to(self.level_editor_render)
-        np.setHpr(Math.hpr_from_euler(Vec3(90, 0, 0)))
+        np.reparent_to(self.scene_render)
+        np.setHpr(Vec3(0, 90, 0))
         np.setColor(1, 1, 1, 1)
         mat = Material()
         mat.setDiffuse((1, 1, 1, 1))
         np.setMaterial(mat)
 
         # turn on per pixel lightning
-        np.setShaderAuto()
+        # np.setShaderAuto()
         return np
-
-    LIGHT_MAP = {"PointLight": (PointLight, EdPointLight, POINT_LIGHT_MODEL),
-                 "Spotlight": (Spotlight, EdSpotLight, SPOT_LIGHT_MODEL),
-                 "DirectionalLight": (DirectionalLight, EdDirectionalLight, DIR_LIGHT_MODEL)}
 
     def add_light(self, light):
         if self.LIGHT_MAP.__contains__(light):
@@ -516,34 +591,28 @@ class LevelEditor:
             handle.setPythonTag(TAG_PICKABLE, handle)
             handle.start_update()
             handle.setLightOff()
-            handle.show(BitMask32(0))
-            handle.hide(BitMask32(1))
+            handle.show(ED_GEO_MASK)
+            handle.hide(GAME_GEO_MASK)
 
             if self.ed_state == GAME_STATE:
                 handle.reparent_to(self.runtime_np_parent)
             else:
-                handle.reparent_to(self.level_editor_render)
+                handle.reparent_to(self.scene_render)
 
             if self.scene_lights_on:
                 self.panda_app.showbase.render.setLight(handle)
 
             self.scene_lights.append(handle)
             model.reparentTo(handle)
-            # model.setScale(2.25) point light
-            # model.setScale(0.8) point light
+
             return handle
 
-    NODE_TYPE_MAP = {"ModelNp": ModelNp,
-                     "DirectionalLight": EdDirectionalLight,
-                     "PointLight": EdPointLight,
-                     "SpotLight": EdSpotLight,
-                     "EdCameraNp": EdCameraNp}
+    def duplicate_object(self, selections=None, select=True, *args):
+        if selections is None:
+            selections = []
 
-    def duplicate_object(self, selections=[], select=True, *args):
         if len(selections) is 0:
             selections = self.panda_app.selection.get_selections()
-
-        self.panda_app.selection.deselect_all()
 
         new_selections = []
 
@@ -552,9 +621,9 @@ class LevelEditor:
 
             if uid in self.NODE_TYPE_MAP.keys():
 
-                x = np.copyTo(self.level_editor_render)
+                x = np.copyTo(self.scene_render)
                 # for some reason np.copy does not duplicate PYTHON TAG as well
-                # so clear existing PY TAG and recreate object according to it's type e.g
+                # so clear existing PY TAG and recreate object according to its type e.g.
                 # light, model, camera, actor etc
                 x.clearPythonTag(TAG_PICKABLE)
                 x = self.NODE_TYPE_MAP[uid](x, self, uid=uid)
@@ -570,30 +639,41 @@ class LevelEditor:
                 new_selections.append(x)
 
         if select:
+            self.panda_app.selection.deselect_all()
             self.panda_app.selection.set_selected(new_selections)
             self.panda_app.update_gizmo()
             obs.trigger("NodepathSelected", new_selections)
 
         return new_selections
 
-    def on_delete(self, *args, **kwargs):
-        if len(self.panda_app.selection.selected_nps) > 0:
-            obs.trigger("DeleteObject")
-            self.panda_app.update_gizmo()
+    def remove_nodepaths(self, nodepaths=[]):
+        pass
 
-    def delete_selected(self, selections=None):
-        selections = self.panda_app.selection.get_selections()
+    def on_remove(self, *args, **kwargs):
+        if len(self.panda_app.selection.selected_nps) > 0:
+            obs.trigger("RemoveNodePath")
+
+    def remove_selected_nps(self, selections=None):
+        if selections is None:
+            selections = self.panda_app.selection.get_selections()
 
         for x in selections:
             x.hideBounds()
+
+            # for the time being, cannot remove camera
+            if x.uid == "EdCameraNp":
+                continue
+
             x.on_remove()
             x.clearPythonTag(TAG_PICKABLE)
             x.remove_node()
 
-        if len(selections) > 0:
-            self.panda_app.selection.selected_nps.clear()
+        self.panda_app.selection.get_selections().clear()
+        self.panda_app.update_gizmo()
 
-    def toggle_scene_lights(self, val=None):
+    def toggle_scene_lights(self):
+        """inverts scene_light_on status and returns inverted value"""
+
         if self.scene_lights_on:
             self.scene_lights_on = False
             self.panda_app.showbase.render.setLightOff()
@@ -605,17 +685,28 @@ class LevelEditor:
 
         return self.scene_lights_on
 
+    def set_main_camera(self):
+        pass
+
+    def get_save_data(self):
+        pass
+
+    # ------------------- public methods of level editor ------------------- #
+
     def get_editor_state(self):
         return self.ed_state
 
-    def get_main_camera(self):
-        return self.__main_camera__
+    def get_player_camera(self):
+        return self.player_camera
 
     def get_ed_camera(self):
         return self.panda_app.showbase.ed_camera
 
+    def get_render(self):
+        return self.panda_app.showbase.render
+
     def get_mod_instance(self, mod_name):
-        # TO:DO needs an exception handler here
+        # TO:DO need an exception handler here
         mod_name = mod_name[0].upper() + mod_name[1:]
         if self.user_modules.__contains__(mod_name):
             return self.user_modules[mod_name]
@@ -626,6 +717,3 @@ class LevelEditor:
 
     def get_scene_lights(self):
         return self.scene_lights
-
-    def get_save_data(self):
-        pass

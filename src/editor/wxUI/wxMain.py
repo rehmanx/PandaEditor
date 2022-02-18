@@ -10,7 +10,7 @@ from editor.wxUI.customInspectorPanel import CustomInspectorPanel
 from editor.wxUI.logPanel import LogPanel
 from editor.wxUI.wxDialogs import DialogManager
 from editor.p3d import wxPanda
-from editor.constants import object_manager, obs
+from editor.constants import object_manager, obs, ICONS_PATH
 
 # scene events
 TB_EVT_NEW = wx.NewId()
@@ -41,52 +41,47 @@ PROJ_EVENTS = {
 }
 
 # resources
-ICON_FILE = "editor/resources/pandaIcon.ico"
-NEW_ICON = "editor/resources/icons/fileNew_32.png"
-OPEN_ICON = "editor/resources/icons/fileOpen_32.png"
-SAVE_ICON = "editor/resources/icons/fileSave_32.png"
-SAVE_AS_ICON = "editor/resources/icons/fileSaveAs_32.png"
-PROJ_OPEN_ICON = "editor/resources/icons/fileOpen_32.png"
-PROJ_SAVE_ICON = "editor/resources/icons/fileOpen_32.png"
-IMPORT_LIBRARY_ICON = "editor/resources/icons/importLib_32.png"
+ICON_FILE = ICONS_PATH + "\\" + "pandaIcon.ico"
+NEW_ICON = ICONS_PATH + "\\" + "fileNew_32.png"
+OPEN_ICON = ICONS_PATH + "\\" + "fileOpen_32.png"
+SAVE_ICON = ICONS_PATH + "\\" + "fileSave_32.png"
+SAVE_AS_ICON = ICONS_PATH + "\\" + "fileSaveAs_32.png"
+PROJ_OPEN_ICON = ICONS_PATH + "\\" + "fileOpen_32.png"
+PROJ_SAVE_ICON = ICONS_PATH + "\\" + "fileOpen_32.png"
+IMPORT_LIBRARY_ICON = ICONS_PATH + "\\" + "importLib_32.png"
 
-PLAY_ICON = "editor/resources/icons/playIcon_32x.png"
-STOP_ICON = "editor/resources/icons/stopIcon_32.png"
+PLAY_ICON = ICONS_PATH + "\\" + "playIcon_32x.png"
+STOP_ICON = ICONS_PATH + "\\" + "stopIcon_32.png"
 
-ALL_LIGHTS_ON_ICON = "editor/resources/icons/lightbulb_32x_on.png"
-ALL_LIGHTS_OFF_ICON = "editor/resources/icons/lightbulb_32x_off.png"
-SOUND_ICON = "editor/resources/icons/soundIcon.png"
-NO_SOUND_ICON = "editor/resources/icons/noSoundIcon.png"
+ALL_LIGHTS_ON_ICON = ICONS_PATH + "\\" + "lightbulb_32x_on.png"
+ALL_LIGHTS_OFF_ICON = ICONS_PATH + "\\" + "lightbulb_32x_off.png"
+SOUND_ICON = ICONS_PATH + "\\" + "soundIcon.png"
+NO_SOUND_ICON = ICONS_PATH + "\\" + "noSoundIcon.png"
 
-DISABLED_ICON = "editor/resources/icons/disabled_icon.png"
+DISABLED_ICON = ICONS_PATH + "\\" + "disabled_icon.png"
 
-DEFAULT_AUI_LAYOUT = "layout2|name=FileMenuToolBar;caption=Toolbar;state=6737\
-9964;dir=1;layer=10;row=0;pos=0;prop=100000;bestw=135;besth=42;minw=-1;minh=-\
-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1;notebookid=-1;trans\
-parent=255|name=ProjectMenuToolbar;caption=Toolbar;state=67379964;dir=1;layer=10;r\
-ow=0;pos=137;prop=100000;bestw=95;besth=42;minw=-1;minh=-1;maxw=-1;maxh=-1;fl\
-oatx=-1;floaty=-1;floatw=-1;floath=-1;notebookid=-1;transparent=255|name=SceneControlsToolbar\
-;caption=Toolbar;state=67379964;dir=1;layer=10;row=0;pos=234;prop=100\
-000;bestw=95;besth=42;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;flo\
-atw=-1;floath=-1;notebookid=-1;transparent=255|name=PlayControlsToolbar;caption=\
-Toolbar;state=67379964;dir=1;layer=10;row=0;pos=331;prop=100000;bestw=55;best\
-h=42;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1;\
-notebookid=-1;transparent=255|name=EditorViewport;caption=EditorView;state=13\
-4481916;dir=4;layer=0;row=0;pos=0;prop=100000;bestw=1;besth=1;minw=-1;minh=-1\
-;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1;notebookid=-1;transp\
-arent=255|name=GameViewport;caption=GameView;state=134481916;dir=4;layer=0;ro\
-w=1;pos=0;prop=100000;bestw=1;besth=20;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx\
-=313;floaty=380;floatw=1;floath=20;notebookid=-1;transparent=255|name=ObjectI\
-nspectorTab;caption=InspectorTab;state=201590780;dir=4;layer=0;row=2;pos=0;pr\
-op=100000;bestw=1;besth=20;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=1018;floaty\
-=383;floatw=1;floath=20;notebookid=-1;transparent=255|name=ResourceBrowser;ca\
-ption=ResourceBrowser;state=201590780;dir=3;layer=1;row=0;pos=0;prop=106332;b\
-estw=16;besth=35;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=509;floaty=657;floatw\
-=576;floath=216;notebookid=-1;transparent=255|name=LogTab;caption=LogTab;stat\
-e=201590780;dir=3;layer=1;row=0;pos=1;prop=93667;bestw=118;besth=49;minw=-1;m\
-inh=-1;maxw=-1;maxh=-1;floatx=637;floaty=555;floatw=118;floath=49;notebookid\
-=-1;transparent=255|dock_size(1,10,0)=44|dock_size(4,0,0)=556|dock_size(4,0,1)\
-=477|dock_size(4,0,2)=331|dock_size(3,1,0)=262|"
+DEFAULT_AUI_LAYOUT = "layout2|name=FileMenuToolBar;caption=Toolbar;state=67379964;\
+dir=1;layer=10;row=0;pos=0;prop=100000;bestw=135;besth=42;minw=-1;minh=-1;maxw=-1;\
+maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1;notebookid=-1;\
+transparent=255|name=ProjectMenuToolbar;caption=Toolbar;state=67379964;dir=1;layer=10;\
+row=0;pos=137;prop=100000;bestw=95;besth=42;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;\
+floaty=-1;floatw=-1;floath=-1;notebookid=-1;transparent=255|name=SceneControlsToolbar;\
+caption=Toolbar;state=67379964;dir=1;layer=10;row=0;pos=234;prop=100000;bestw=95;besth=42;\
+minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1;notebookid=-1;\
+transparent=255|name=PlayControlsToolbar;caption=Toolbar;state=67379964;dir=1;layer=10;\
+row=0;pos=331;prop=100000;bestw=55;besth=42;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;\
+floaty=-1;floatw=-1;floath=-1;notebookid=-1;transparent=255|name=EditorViewport;\
+caption=EditorView;state=134481916;dir=4;layer=0;row=0;pos=0;prop=100000;bestw=1;besth=1;\
+minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=-1;floaty=-1;floatw=-1;floath=-1;notebookid=-1;\
+transparent=255|name=ObjectInspectorTab;caption=InspectorTab;state=201590780;dir=4;layer=0;\
+row=2;pos=0;prop=100000;bestw=1;besth=20;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=1018;\
+floaty=383;floatw=1;floath=20;notebookid=-1;transparent=255|name=ResourceBrowser;\
+caption=ResourceBrowser;state=201590780;dir=3;layer=1;row=0;pos=0;prop=43181;\
+bestw=16;besth=35;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=509;floaty=657;floatw=576;\
+floath=216;notebookid=-1;transparent=255|name=LogTab;caption=LogTab;state=201590780;dir=3;\
+layer=1;row=0;pos=1;prop=156817;bestw=118;besth=49;minw=-1;minh=-1;maxw=-1;maxh=-1;floatx=637;\
+floaty=555;floatw=118;floath=49;notebookid=-1;\
+transparent=255|dock_size(1,10,0)=44|dock_size(4,0,0)=813|dock_size(4,0,2)=335|dock_size(3,1,0)=262|"
 
 
 class WxFrame(wx.Frame):
@@ -197,7 +192,7 @@ class WxFrame(wx.Frame):
 
         # load default layout
         self.aui_manager.LoadPerspective(DEFAULT_AUI_LAYOUT)
-        self.aui_manager.save_layout("UILayoutGeneral", self.panel_defs.keys(), DEFAULT_AUI_LAYOUT)
+        self.aui_manager.save_layout("DefaultLayout", self.panel_defs.keys(), DEFAULT_AUI_LAYOUT)
 
         self.aui_manager.Update()
 

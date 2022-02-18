@@ -7,15 +7,21 @@ from editor.levelEditor import LevelEditor
 from editor.p3d import ThreeAxisGrid, wxPanda, MOUSE_ALT
 from editor.selection import Selection
 from editor.constants import *
-from panda3d.core import BitMask32, WindowProperties
+from panda3d.core import WindowProperties
 
 
 class MyApp(wxPanda.App):
+
+    _auto_center_mouse = False
+    wx_main = None
+    showbase = None
+
+    level_editor = None
+
     def init(self):
         object_manager.add_object("P3dApp", self)
 
-        self.wx_main = WxFrame(parent=None, title="PandaEditor", size=(800, 600))
-
+        self.wx_main = WxFrame(parent=None, title="PandaEditor (Default Project)", size=(800, 600))
         self.showbase = ShowBase(self.wx_main.ed_viewport_panel)
 
         self.wx_main.Show()
@@ -32,11 +38,9 @@ class MyApp(wxPanda.App):
 
         # set this variable to true as soon as pointer enters window and false on leave
         self.mouse_in_viewport = False
-        # -------------------------------
 
         self.mouse_1_down = False
         self.mouse_2_down = False
-        # -------------------------------
 
         self._auto_center_mouse = False
 
@@ -46,35 +50,20 @@ class MyApp(wxPanda.App):
                                   subdiv=4)
         self.grid_np = self.grid.create()
         self.grid_np.reparent_to(self.showbase.edRender)
-        self.grid_np.show(BitMask32(0))
-        self.grid_np.hide(BitMask32(1))
+        self.grid_np.show(ED_GEO_MASK)
+        self.grid_np.hide(GAME_GEO_MASK)
 
         '''setup selection and gizmos'''
         self.setup_selection_system()
 
         self.setup_gizmo_manager()
-        self.gizmo_mgr_root_np.show(BitMask32(0))
-        self.gizmo_mgr_root_np.hide(BitMask32(1))
 
         '''start the editor'''
         self.level_editor = LevelEditor(self)
+
         self.wx_main.finish_init()
 
-        # ------------------------------------------------
-        '''Bind mouse events'''
-        self.accept('mouse1', self.on_mouse1_down)
-        self.accept('mouse2', self.on_mouse2_down)
-
-        self.accept('mouse1-up', self.on_mouse1_up)
-        self.accept('mouse2-up', self.on_mouse2_up)
-
-        self.accept('shift-mouse1', self.on_mouse1_down, [True])
-        self.accept('control-mouse1', self.on_mouse1_down)
-        # ------------------------------------------------
-
-        '''create key events'''
-        '''key events are unbind on EnterPlayState,
-        show be created again on EnterEditorState'''
+        # bind events
         self.key_event_map = {"q": (self.set_active_gizmo, None),
                               "w": (self.set_active_gizmo, "pos"),
                               "e": (self.set_active_gizmo, "rot"),
@@ -83,7 +72,16 @@ class MyApp(wxPanda.App):
                               "+": (self.gizmo_mgr.SetSize, 2),
                               "-": (self.gizmo_mgr.SetSize, 0.5),
                               "control-d": (self.level_editor.duplicate_object, []),
-                              "x": (self.level_editor.on_delete, None)
+                              "x": (self.level_editor.on_remove, None),
+
+                              "mouse1": (self.on_mouse1_down, None),
+                              "mouse2": (self.on_mouse2_down, None),
+
+                              "mouse1-up": (self.on_mouse1_up, None),
+                              "mouse2-up": (self.on_mouse2_up, None),
+
+                              "shift-mouse1": (self.on_mouse1_down, [True]),
+                              "control-mouse1": (self.on_mouse1_down, None)
                               }
         self.bind_key_events()
 
@@ -91,11 +89,11 @@ class MyApp(wxPanda.App):
         self.update_task = taskMgr.add(self.update, 'EditorUpdateTask', sort=0)
         self.late_update_task = taskMgr.add(self.late_update, 'EditorLateUpdateTask', sort=1)
 
-        # setup default project path
-        curr_working_dir = os.getcwd()
-        default_dir = curr_working_dir + "\\game"
-        self.wx_main.proj_browser.build_tree(default_dir)
-        self.level_editor.setup_project(default_dir)
+        # setup a default working project
+        # curr_working_dir = os.getcwd()
+        # default_dir = curr_working_dir + "\\game"
+        # self.level_editor.load_default_project(default_dir)
+        self.level_editor.start()
 
     def setup_selection_system(self):
         self.selection = Selection(
@@ -103,7 +101,7 @@ class MyApp(wxPanda.App):
             rootNp=self.showbase.edRender,
             root2d=self.showbase.edRender2d,
             win=self.showbase.win,
-            mouseWatcherNode=self.showbase.edMouseWatcherNode
+            mouseWatcherNode=self.showbase.ed_mouse_watcher_node
         )
 
     def setup_gizmo_manager(self):
@@ -113,7 +111,7 @@ class MyApp(wxPanda.App):
             'camera': self.showbase.ed_camera,
             'rootNp': self.gizmo_mgr_root_np,
             'win': self.showbase.win,
-            'mouseWatcherNode': self.showbase.edMouseWatcherNode
+            'mouseWatcherNode': self.showbase.ed_mouse_watcher_node
         }
         self.gizmo_mgr = gizmos.Manager(**kwargs)
         self.gizmo_mgr.AddGizmo(gizmos.Translation('pos', **kwargs))
@@ -148,7 +146,11 @@ class MyApp(wxPanda.App):
         for key in self.key_event_map.keys():
             func = self.key_event_map[key][0]
             args = self.key_event_map[key][1]
-            self.accept(key, func, [args])
+
+            if args is None:
+                self.accept(key, func)
+            else:
+                self.accept(key, func, [args])
 
     def unbind_key_events(self):
         for key in self.key_event_map.keys():
@@ -197,10 +199,9 @@ class MyApp(wxPanda.App):
     def on_mouse_hover(self):
         self.wx_main.ed_viewport_panel.OnMouseHover(0, 0)
 
-    '''update is called every frame'''
-
     def update(self, task):
-        if self.showbase.edMouseWatcherNode.hasMouse():
+        """update is called every frame"""
+        if self.showbase.ed_mouse_watcher_node.hasMouse():
             if self.mouse_in_viewport is False:
                 self.mouse_in_viewport = True
                 self.wx_main.ed_viewport_panel.OnMouseEnter()
@@ -216,10 +217,10 @@ class MyApp(wxPanda.App):
 
         return task.cont
 
-    '''late_update is called every after update'''
-
     def late_update(self, task):
-        obs.trigger("XFormTask")
+        """late_update is called every after update"""
+        if self.gizmo_mgr.IsDragging():
+            obs.trigger("XFormTask")
         return task.cont
 
     def center_mouse_pointer(self):

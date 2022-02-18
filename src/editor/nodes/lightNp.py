@@ -112,6 +112,7 @@ class EdPointLight(LightNp):
         attenuations = ['constant', 'linear', 'quadratic', 'linear-quadratic']
         attenuation = EdProperty.ChoiceProperty(name="attenuation",
                                                 setter=self.set_attenuation,
+                                                getter=self.get_attenuation,
                                                 choices=attenuations)
         self.properties.append(attenuation)
 
@@ -125,7 +126,6 @@ class EdPointLight(LightNp):
 
 class EdSpotLight(LightNp):
     def __init__(self, *args, **kwargs):
-
         # create a lens
         self.lens = PerspectiveLens()
         self.lens.setFov(2)
@@ -148,15 +148,19 @@ class EdSpotLight(LightNp):
 
     def create_properties(self):
         super(EdSpotLight, self).create_properties()
-        attenuations = ['constant', 'linear', 'quadratic', 'linear-quadratic']
-        attenuation = EdProperty.ChoiceProperty(name="attenuation", _type="choice",
-                                                setter=self.set_attenuation, getter=self.get_attenuation,
-                                                choices=attenuations)
 
-        fov = EdProperty.FuncProperty(name="FOV(SpotAngel)", _type=Vec2,
-                                      setter=self.lens.setFov, getter=self.lens.getFov)
+        attenuation_types = ['constant', 'linear', 'quadratic', 'linear-quadratic']
+        attenuation_prop = EdProperty.ChoiceProperty(name="attenuation",
+                                                     setter=self.set_attenuation,
+                                                     getter=self.get_attenuation,
+                                                     choices=attenuation_types)
 
-        self.properties.append(attenuation)
+        fov = EdProperty.FuncProperty(name="FOV(SpotAngel)",
+                                      value=self.lens.getFov(),
+                                      setter=self.lens.setFov,
+                                      getter=self.lens.getFov)
+
+        self.properties.append(attenuation_prop)
         self.properties.append(fov)
 
     def get_attenuation(self):

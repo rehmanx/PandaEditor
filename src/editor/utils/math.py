@@ -31,6 +31,7 @@ class Math:
         clamp = max(min(angle, max_val), min_val)
         return clamp
 
+    '''
     @staticmethod
     def euler_from_hpr(hpr):
         euler = Vec3(hpr.y, hpr.z, hpr.x)
@@ -40,3 +41,4 @@ class Math:
     def hpr_from_euler(euler):
         hpr = Vec3(euler.z, euler.x, euler.y)
         return hpr
+    '''

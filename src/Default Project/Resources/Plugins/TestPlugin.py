@@ -1,9 +1,9 @@
 import math
-import panda3d.core as pm
+import panda3d.core as p3dCore
 from editor.p3d.pToolBase import PToolBase
 
 
-class SomeTool( PToolBase ):
+class TestPlugin(PToolBase):
     def __init__(self, *args, **kwargs):
         PToolBase.__init__(self, *args, **kwargs)
 

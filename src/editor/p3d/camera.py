@@ -1,6 +1,6 @@
 import math
 import panda3d.core as pm
-from panda3d.core import Camera as PCamera, Vec3, Quat, NodePath, LineSegs, PerspectiveLens
+from panda3d.core import Camera as PCamera, Vec3, Quat, NodePath, PerspectiveLens
 from editor.p3d.singleTask import SingleTask
 from editor.p3d.geometry import Axes
 

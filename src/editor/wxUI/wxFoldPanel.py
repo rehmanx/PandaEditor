@@ -1,12 +1,13 @@
 import wx
 from editor.colourPalette import ColourPalette as Colours
+from editor.constants import ICONS_PATH
 
 
 PANEL_FOLD_SIZE = 24.0
 LEFT_PADDING = 8
 
-FOLD_OPEN_ICON = "editor/resources/icons/foldOpen_32.png"
-FOLD_CLOSE_ICON = "editor/resources/icons/foldClose_32.png"
+FOLD_OPEN_ICON = ICONS_PATH + "\\" + "foldOpen_32.png"
+FOLD_CLOSE_ICON = ICONS_PATH + "\\" + "foldClose_32.png"
 
 
 class WxFoldPanel(wx.Panel):

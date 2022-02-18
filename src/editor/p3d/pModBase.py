@@ -25,6 +25,11 @@ class PModBase(SingleTask):
         self.__initialized = True
         self.__are_sub_objects_valid = False
 
+        self.sub_objects = []
+
+        self.runtime_renderer = None
+        self.scene_renderer = None
+
         # default sort value for user modules
         self._sort = 3
 
@@ -39,8 +44,8 @@ class PModBase(SingleTask):
                                   "_PModBase__are_sub_objects_valid",
                                   "_PModBase__discarded_attrs"]
 
-    def Start(self, sort=None, priority=None):
-        res = try_execute(super(PModBase, self).Start, sort, priority)
+    def Start(self, sort=None, late_update_sort=None, priority=None):
+        res = try_execute(super(PModBase, self).Start, sort, late_update_sort, priority)
         if res is not True:
             stop_execution()
             return False
@@ -135,8 +140,7 @@ class PModBase(SingleTask):
 
     def are_sub_objects_valid(self):
         try:
-            sub_objs = self.get_sub_objects()
-            for obj in sub_objs:
+            for obj in self.get_sub_objects():
                 y = obj.__initialized
         except Exception as ex:
             print("sub objects validation failed for object " + self.get_name())
@@ -149,7 +153,7 @@ class PModBase(SingleTask):
         return True
 
     def get_sub_objects(self):
-        return []
+        return self.sub_objects
 
     def update_properties(self):
         for prop in self.__properties:
@@ -167,3 +171,8 @@ class PModBase(SingleTask):
         xx = extra_args.copy()
         xx.append(method)
         super(SingleTask, self).accept(event, execute, extraArgs=xx)
+
+    def load_model(self, path):
+        _path = self.le.project.project_path
+        _path += "/" + path
+        return self.le.load_model(_path)

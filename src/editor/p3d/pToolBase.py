@@ -6,12 +6,22 @@ from direct.showbase.ShowBase import taskMgr
 
 class PToolBase(pModBase.PModBase):
     def __init__(self, *args, **kwargs):
+        """PToolBase inherits from PModBase almost every other thing is same except
+        that its update is triggered from on_enable, there is no late_update and
+         Start, Stop methods have no effect"""
+
         pModBase.PModBase.__init__(self, *args, **kwargs)
         self._sort = 2
 
         self.__tab_request = None
 
         self.add_discarded_attr("_PToolBase__tab_request")
+
+    def Start(self):
+        pass
+
+    def Stop(self):
+        pass
 
     def enable(self):
         res = try_execute(self.on_enable)

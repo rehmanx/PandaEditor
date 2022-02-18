@@ -66,12 +66,9 @@ class NotebookSaveData:
 
 
 class AuiManagerSaveData:
-    def __init__(self, layout="", tabs=None):
+    def __init__(self, layout, panels):
         self.layout = layout
-        self.tabs = []
-        if tabs is not None:
-            for tab in tabs:
-                self.tabs.append(tab)
+        self.panels = panels
 
 
 class AuiManager(aui.AuiManager):
@@ -84,40 +81,48 @@ class AuiManager(aui.AuiManager):
         self.SetManagedWindow(self.wx_main)
         self.Bind(aui.EVT_AUI_PANE_CLOSE, self.on_evt_pane_closed)
 
-    def save_layout(self, name, panels, layout):
+    def save_current_layout(self, name):
         if name not in self.__saved_layouts.keys():
-            save_data_obj = AuiManagerSaveData(layout, panels)
+
+            layout = self.SavePerspective()
+            print(layout)
+            panel_names = [x.name for x in self.GetAllPanes()]
+
+            save_data_obj = AuiManagerSaveData(layout, panel_names)
+
             self.__saved_layouts[name] = save_data_obj
+
             return True
+
         return False
+
+    def save_layout(self, name, panels, layout):
+        save_data_obj = AuiManagerSaveData(layout, panels)
+        self.__saved_layouts[name] = save_data_obj
 
     def load_layout(self, layout):
         if layout in self.__saved_layouts.keys():
             layout_data = self.__saved_layouts[layout]
 
-            # before loading a new layout make sure all the panes including custom user panes as well as
-            # pandaEditor defaults are available in aui.ManagerGetAllPanes, otherwise return
-            for pane in layout_data.tabs:
-                if pane in self.GetAllPanes():
+            # get names of all panels available in current session
+            current_panels = [x.name for x in self.GetAllPanes()]
+
+            # make sure all the panels from saved layout are available in this session as well
+            for panel_name in layout_data.panels:
+                if panel_name in current_panels:
                     pass
                 else:
-                    print("unable to load layout {0}, pane {1} is not available in current session !".
-                          format(layout, self.GetPane(pane)))
+                    print("unable to load layout {0}, pane {1} is not available in current session...!".
+                          format(layout, panel_name))
                     return
 
-            # close all tabs that can be closed
+            # close all panels except for toolbar panels
             all_panes = self.GetAllPanes()
-            for pane in all_panes:
-                if pane.name not in self.wx_main.tb_panes:
-                    self.ClosePane(pane)
-
-            '''
-            for tab in layout_data.tabs:
-                self.wx_main.add_tab(tab)
-            '''
+            for panel in all_panes:
+                if panel.name not in self.wx_main.tb_panes:
+                    self.ClosePane(panel)
 
             self.LoadPerspective(layout_data.layout)
-
             return True
 
         else:

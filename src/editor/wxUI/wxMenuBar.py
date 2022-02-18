@@ -1,6 +1,5 @@
 import wx
 from editor.constants import obs, CUBE_PATH, CAPSULE_PATH, PLANE_PATH, CONE_PATH
-from editor.utils.exceptionHandler import try_execute
 
 EVT_SET_PROJECT = wx.NewId()
 EVT_OPEN_PROJECT = wx.NewId()
@@ -81,21 +80,9 @@ class WxMenuBar(wx.MenuBar):
     def __init__(self, wx_main):
         wx.MenuBar.__init__(self)
         self.wx_main = wx_main
+        self.user_layout_menus = {}
 
         self.build()
-
-        # this is the last menu index of official menus shipped with PandaEditor,
-        # menus having index greater than official_menus_end_index will be user
-        # created menus and will be loaded/reloaded/removed depending on input,
-        # everytime when PandaEditor reloads.
-        self.official_menus_end_index = self.GetMenuCount()
-
-        # this is incremented as soon as a new user menu is created
-        self.user_menus = {}
-        self.user_menu_items = {}
-        self.user_menus_index = 0
-
-        self.user_layout_menus = {}
 
         self.Bind(wx.EVT_MENU, self.on_event)
 
@@ -125,8 +112,8 @@ class WxMenuBar(wx.MenuBar):
         # project_menu
         proj_menu = wx.Menu()
         self.Append(proj_menu, "Project")
-        menu_items = [(EVT_SET_PROJECT, "&Set Project", None),
-                      (EVT_OPEN_PROJECT, "&Open Project", None),
+        menu_items = [(EVT_SET_PROJECT, "&Start New Project", None),
+                      (EVT_OPEN_PROJECT, "&Load Project", None),
                       (EVT_APPEND_LIBRARY, "&Append Library", None),
                       ]
         build_menu_bar(proj_menu, menu_items)
@@ -195,42 +182,6 @@ class WxMenuBar(wx.MenuBar):
                       (RELOAD_EDITOR_DATA, "Reload", None), ]
         build_menu_bar(ed_menu, menu_items)
 
-    def add_user_menu(self, name, func):
-        def build(_meuns, i, parent_name, _func):
-            menu = _meuns[i]
-
-            if parent_name in self.user_menus.keys() and i == len(_meuns) - 1:
-                _parent = self.user_menus[parent_name]
-                _id = wx.NewId()
-                menu_item = wx.MenuItem(_parent, _id, menu)
-                # menu_item.SetBitmap(wx.Bitmap('exit.png'))
-                _parent.Append(menu_item)
-                self.user_menu_items[_id] = (menu, _func)
-
-            elif parent_name in self.user_menus.keys() and parent_name != menu and menu not in self.user_menus.keys():
-                wx_menu = wx.Menu()
-                _parent = self.user_menus[parent_name]
-                _parent.Append(wx.ID_ANY, menu, wx_menu)
-                self.user_menus[menu] = wx_menu  # add to menus repo
-
-            elif parent_name not in self.user_menus.keys():
-                wx_menu = wx.Menu()
-                self.Append(wx_menu, menu)
-                self.user_menus_index += 1
-                self.user_menus[menu] = wx_menu  # add to menus repo
-
-            i += 1
-            if i < len(_meuns):
-                try_execute(build, _meuns, i, menu, func)
-
-        menus = name.split("/")
-        if len(menus) > 3:
-            print("error: menus list must be less then or equal to 2, wxMenuBar-> add_new_menu")
-            return
-
-        x = try_execute(build, menus, 0, menus[0], func)
-        return x
-
     def add_layout_menu(self, name):
         if name not in self.user_layout_menus.values():
             _id = wx.NewId()
@@ -238,15 +189,6 @@ class WxMenuBar(wx.MenuBar):
             self.ed_layout_menu.Append(menu_item)
 
             self.user_layout_menus[_id] = name
-
-    def clear_user_menus(self):
-        index = self.official_menus_end_index
-        for i in range(self.user_menus_index):
-            self.Remove(index)
-
-        self.user_menus_index = 0
-        self.user_menu_items.clear()
-        self.user_menus.clear()
 
     def clear_layout_menus(self):
         pass
@@ -269,13 +211,6 @@ class WxMenuBar(wx.MenuBar):
 
         elif evt.GetId() in OBJECT_EVENTS:
             obs.trigger("AddObject", OBJECT_EVENTS[evt.GetId()])
-
-        elif evt.GetId() in self.user_menu_items.keys():
-            menu, func = self.user_menu_items[evt.GetId()]
-            if func:
-                try_execute(func)
-            else:
-                obs.trigger("EventAddTab", menu)
 
         elif evt.GetId() in self.user_layout_menus.keys():
             obs.trigger("LoadUserLayout", self.user_layout_menus[evt.GetId()])

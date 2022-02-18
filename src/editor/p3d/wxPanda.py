@@ -1,8 +1,6 @@
 import sys
-import pickle as cPickle
 import wx
 
-from editor.assetsHandler import AssetsHandler
 from direct.showbase.DirectObject import DirectObject
 from panda3d.core import WindowProperties, Point3, Vec3
 from direct.showbase.ShowBase import taskMgr
@@ -132,15 +130,13 @@ class Viewport(wx.Panel):
     def OnMouseEnter(self):
         le = self.wx_main.panda_app.level_editor
         resource_browser = object_manager.get("ProjectBrowser")
-        cam = self.wx_main.panda_app.level_editor.get_ed_camera()
 
         if not resource_browser.mouse_left_down or not self.wx_main.panda_app.on_mouse1_down:
             return
 
+        '''
         asset_paths = resource_browser.GetSelections()
-
         self.models.clear()
-
         # load paths from Resource_Handler
         for path in asset_paths:
             path = resource_browser.GetItemText(path)
@@ -150,16 +146,17 @@ class Viewport(wx.Panel):
                 # model.reparent_to(le.level_editor_render)
                 model = le.duplicate_object([model])[0]
                 model.setScale(7)
-
+                
                 self.models.append(model)
+        '''
 
     def OnMouseLeave(self):
         if len(self.models) > 0:
-            resource_browser = object_manager.get("ProjectBrowser").end_drag()
+            object_manager.get("ProjectBrowser").end_drag()
 
     def OnMouseHover(self, x, y):
         cam = self.wx_main.panda_app.level_editor.get_ed_camera()
-        mousePointer = self.wx_main.panda_app.showbase.edMouseWatcherNode
+        mousePointer = self.wx_main.panda_app.showbase.ed_mouse_watcher_node
 
         for model in self.models:
 
@@ -175,6 +172,7 @@ class Viewport(wx.Panel):
 
     def OnMouseOneUp(self):
         self.models.clear()
+        # object_manager.get("ProjectBrowser").end_drag()
         
     def ScreenToViewport(self, x, y):
         x = (x / float(self.GetSize()[0]) - 0.5) * 2

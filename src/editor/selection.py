@@ -31,13 +31,11 @@ class Selection(Object):
         picked_np = self.picker.GetFirstNodePath()
         return picked_np
 
-    def get_pickable_np(self, np):
-        pass
-
     def get_selections(self):
         return self.selected_nps
 
-    def get_pickable_np(self, np):
+    @staticmethod
+    def get_pickable_np(np):
         pick_np = np.findNetPythonTag(TAG_PICKABLE)
         if not pick_np.isEmpty():
             pick_np = pick_np.findNetPythonTag(TAG_PICKABLE)
@@ -56,6 +54,7 @@ class Selection(Object):
     def deselect_all(self):
         for np in self.get_selections():
             np.hideBounds()
+        self.selected_nps.clear()
     
     def start_drag_select(self, append=False):
         """

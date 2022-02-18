@@ -10,7 +10,7 @@ class Object(DirectObject, object):
         self.camera = kwargs.pop('camera', base.camera)
 
         # Default root node to render if None is specified
-        self.rootNp = kwargs.pop('rootNp', base.render)
+        self.rootNp = kwargs.pop('render', base.render)
 
         # Default root 2d node to render2d if None is specified
         self.root2d = kwargs.pop('root2d', base.render2d)

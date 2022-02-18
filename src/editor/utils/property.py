@@ -159,38 +159,37 @@ class ButtonProperty(Property):
 
 
 class ChoiceProperty(FuncProperty):
-    def __init__(self, name, choices, value=0, obj=None, setter=None, getter=None):
+    def __init__(self, name, choices, value=0, setter=None, getter=None):
         self.choices = choices
 
-        super().__init__(name=name, value=value, _type="choice", obj=obj, setter=setter, getter=getter)
+        super().__init__(name=name, value=value, _type="choice", setter=setter, getter=getter)
 
     def validate(self):
         # choices must be greater than 1
         if len(self.choices) <= 1:
             self.is_valid = False
+            print("ok_1")
             return
 
         # all choices must be string
         for item in self.choices:
             if type(item) is not str:
                 self.is_valid = False
+                print("ok_2")
                 return
 
         # value must be int
         if type(self.val) is not int:
             self.is_valid = False
-            return
-
-        # here obj is None check (obj has priority over setter/getter) for getter and setter
-        if self.obj is not None:
-            self.is_valid = True
+            print("ok_3")
             return
 
         if self.setter is None or self.getter is None:
             self.is_valid = False
+            print("ok_4")
             return
 
-        super().validate()
+        self.is_valid = True
 
     def get_choices(self):
         return self.choices

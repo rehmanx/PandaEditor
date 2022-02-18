@@ -11,7 +11,7 @@ class SingleTask(Object):
         self._late_task = None
         self._sort = 0
 
-    def Start(self, sort=None, priority=None):
+    def Start(self, sort=None, last_update_sort=None, priority=None):
         self.on_start()
 
         # print("task {0} started sort {1}".format(self._name, self._sort))
@@ -20,16 +20,24 @@ class SingleTask(Object):
 
         # Start the object's task if it hasn't been already
         if not self.IsRunning(0):
-            self._task = taskMgr.add(self.Update, "%sUpdate" % self._name, sort=sort, priority=priority)
+            self._task = taskMgr.add(self.Update, "%sUpdate" % self._name, sort=sort,
+                                     priority=priority)
 
-    def StartLateUpdateTask(self, sort):
         if not self.IsRunning(1):
-            self._late_task = taskMgr.add(self.LateUpdate, "%sLateUpdate" % self._name, sort=sort, priority=None)
+            self._late_task = taskMgr.add(self.LateUpdate, "%sLateUpdate" % self._name,
+                                          sort=last_update_sort, priority=None)
+
+    def Update(self, task):
+        """Run on_update method - return task.cont if there was no return value"""
+        self.on_update()
+        return task.cont
+
+    def LateUpdate(self, task):
+        self.on_late_update()
+        return task.cont
 
     def Stop(self):
-        self.ok = False
         """Remove the object's task from the task manager."""
-
         if self._task in taskMgr.getAllTasks():
             taskMgr.remove(self._task)
             self._task = None
@@ -39,18 +47,6 @@ class SingleTask(Object):
             self._late_task = None
 
         self.on_stop()
-
-    def Update(self, task):
-        """
-        Run on_update method - return task.cont if there was no return value.
-        """
-        self.on_update()
-        # self.on_late_update()
-        return task.cont
-
-    def LateUpdate(self, task):
-        self.on_late_update()
-        return task.cont
 
     def on_start(self):
         """

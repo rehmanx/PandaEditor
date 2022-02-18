@@ -21,6 +21,26 @@ def get_rounded_value(value: float, round_off=3):
     return value
 
 
+def is_valid_int(curr_value):
+    try:
+        int(curr_value)
+        value_valid = True
+    except ValueError:
+        value_valid = False
+
+    return value_valid
+
+
+def is_valid_float(curr_value):
+    try:
+        float(curr_value)
+        value_valid = True
+    except ValueError:
+        value_valid = False
+
+    return value_valid
+
+
 class WxCustomProperty(wx.Window):
     def __init__(self, parent, prop=None, h_offset=1, *args, **kwargs):
         wx.Window.__init__(self, parent, *args)
@@ -130,19 +150,28 @@ class LabelProperty(WxCustomProperty):
 class IntProperty(WxCustomProperty):
     def __init__(self, parent, prop, *args, **kwargs):
         super().__init__(parent, prop, *args, **kwargs)
-        self.ctrl_value = ""
+        self.text_ctrl = None
+
+        # set this to true if control's value is a valid value according to given condition
+        self.valid_value = False
+
+        # last value of text control before updating
+        self.old_value = None
 
     def create_control(self):
         super().create_control()
         self.text_ctrl = wx.TextCtrl(self, size=(0, 18), style=wx.BORDER_SUNKEN, id=ID_TEXT_CHANGE)
+
         # set initial value
-        # property_value = getattr(self.object, self.label)
         property_value = self.get_value()
+        self.old_value = property_value
         self.text_ctrl.SetValue(str(property_value))
+
         # add to sizers
         self.sizer.Add(self.ctrlLabel, 0)
         self.sizer.Add(self.text_ctrl, 1)
         self.sizer.AddSpacer(CONTROL_MARGIN_RIGHT)
+
         # bind events
         self.text_ctrl.Bind(wx.EVT_CHAR, self.on_event_char)
         self.text_ctrl.Bind(wx.EVT_TEXT, self.on_event_text)
@@ -155,8 +184,18 @@ class IntProperty(WxCustomProperty):
         self.text_ctrl.SetValue(str(val))
 
     def on_event_text(self, evt):
-        val = self.text_ctrl.GetValue()
-        self.set_value(int(val))
+        if is_valid_int(self.text_ctrl.GetValue()):
+            self.set_value(int(self.text_ctrl.GetValue()))
+            self.old_value = self.text_ctrl.GetValue()
+        else:
+            # self.text_ctrl_x.SetValue will call this method, so
+            # temporarily unbind evt_text to prevent stack overflow
+            self.text_ctrl.Unbind(wx.EVT_TEXT)
+
+            self.text_ctrl.SetValue(str(self.old_value))
+
+            self.text_ctrl.Bind(wx.EVT_TEXT, self.on_event_text)
+
         evt.Skip()
 
     def on_event_char(self, evt):
@@ -164,7 +203,6 @@ class IntProperty(WxCustomProperty):
 
     def on_key_down(self, evt):
         key_code = evt.GetKeyCode()
-
         # Allow ASCII numerics
         if ord('0') <= key_code <= ord('9'):
             evt.Skip()
@@ -182,16 +220,22 @@ class IntProperty(WxCustomProperty):
 class FloatProperty(WxCustomProperty):
     def __init__(self, parent, prop, *args, **kwargs):
         super().__init__(parent, prop, *args, **kwargs)
-        self.ctrl_value = ""
+        self.text_ctrl = None
+
+        # set this to true if control's value is a valid value according to given condition
+        self.valid_value = False
+
+        # last value of text control before updating
+        self.old_value = None
 
     def create_control(self):
-        # create fields
-        # label = wx.StaticText(self, label=self.label)
         super().create_control()
         self.text_ctrl = wx.TextCtrl(self, size=(0, 18), style=wx.BORDER_SUNKEN, id=ID_TEXT_CHANGE)
+
         # set initial value
         property_value = self.get_value()
         self.text_ctrl.SetValue(str(property_value))
+
         # add to sizers
         self.sizer.Add(self.ctrlLabel, 0)
         self.sizer.Add(self.text_ctrl, 1)
@@ -208,29 +252,34 @@ class FloatProperty(WxCustomProperty):
         val = get_rounded_value(val)
         self.text_ctrl.SetValue(str(val))
 
-    def on_event_text(self, evt):
-        val = self.text_ctrl.GetValue()
-        self.set_value(float(val))
-        evt.Skip()
-
     def on_event_char(self, evt):
         evt.Skip()
 
-    def on_key_down(self, evt):
-        key_code = evt.GetKeyCode()
-
-        # Allow ASCII numerics
-        if ord('0') <= key_code <= ord('9'):
-            evt.Skip()
-
-        # Allow decimal points
-        if key_code == 46:
-            evt.Skip()
-
+    def on_event_text(self, evt):
+        if is_valid_float(self.text_ctrl.GetValue()):
+            self.set_value(float(self.text_ctrl.GetValue()))
+            self.old_value = self.text_ctrl.GetValue()
         else:
-            return
+            # self.text_ctrl_x.SetValue will call this method, so
+            # temporarily unbind evt_text to prevent stack overflow
+            self.text_ctrl.Unbind(wx.EVT_TEXT)
+
+            self.text_ctrl.SetValue(str(self.old_value))
+
+            self.text_ctrl.Bind(wx.EVT_TEXT, self.on_event_text)
 
         evt.Skip()
+
+    def on_key_down(self, evt):
+        evt.Skip()
+        '''
+        key_code = evt.GetKeyCode()
+        # Allow ASCII numerics, decimals
+        if ord('0') <= key_code <= ord('9') or key_code == 46:
+            evt.Skip()
+        else:
+            return
+        '''
 
 
 class StringProperty(WxCustomProperty):
@@ -272,6 +321,9 @@ class StringProperty(WxCustomProperty):
         evt.Skip()
 
     def on_key_down(self, evt):
+        evt.Skip()
+
+        '''
         key_code = evt.GetKeyCode()
 
         # Allow ASCII numerics, decimals
@@ -288,8 +340,7 @@ class StringProperty(WxCustomProperty):
 
         else:
             return
-
-        evt.Skip()
+        '''
 
 
 class BoolProperty(WxCustomProperty):
@@ -461,17 +512,24 @@ class ColourTemperatureProperty(WxCustomProperty):
 class Vector2Property(WxCustomProperty):
     def __init__(self, parent, prop, *args, **kwargs):
         super().__init__(parent, prop, *args, **kwargs)
+
         self.bold_font = wx.Font(10, wx.DEFAULT, wx.NORMAL, wx.BOLD)
+
+        self.text_ctrl_x = None
+        self.text_ctrl_y = None
+
+        self.old_value = ""
 
     def create_control(self):
         # label = wx.StaticText(self, label=self.label)
         super(Vector2Property, self).create_control()
-        label_x = wx.StaticText(self, label="X")
+
+        label_x = wx.StaticText(self, label="H")
         label_x.SetFont(self.bold_font)
         label_x.SetForegroundColour(self.text_colour)
         self.text_ctrl_x = wx.TextCtrl(self, size=(0, 18), style=wx.BORDER_DOUBLE, id=ID_TEXT_CHANGE)
 
-        label_y = wx.StaticText(self, label="Y")
+        label_y = wx.StaticText(self, label="P")
         label_y.SetFont(self.bold_font)
         label_y.SetForegroundColour(self.text_colour)
         self.text_ctrl_y = wx.TextCtrl(self, size=(0, 18), style=wx.BORDER_DOUBLE, id=ID_TEXT_CHANGE)
@@ -492,10 +550,15 @@ class Vector2Property(WxCustomProperty):
         self.sizer.AddSpacer(CONTROL_MARGIN_RIGHT)
 
         # bind events
+        # bind char events
         self.text_ctrl_x.Bind(wx.EVT_CHAR, self.on_event_char)
         self.text_ctrl_y.Bind(wx.EVT_CHAR, self.on_event_char)
+
+        # bind text events
         self.text_ctrl_x.Bind(wx.EVT_TEXT, self.on_event_text)
         self.text_ctrl_y.Bind(wx.EVT_TEXT, self.on_event_text)
+
+        # bind key down events
         self.text_ctrl_x.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
         self.text_ctrl_y.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
@@ -512,51 +575,85 @@ class Vector2Property(WxCustomProperty):
         evt.Skip()
 
     def on_event_text(self, evt):
-        # now update values
-        x = float(self.text_ctrl_x.GetValue())
-        y = float(self.text_ctrl_y.GetValue())
+        # validate h
+        if is_valid_float(self.text_ctrl_x.GetValue()):
+            is_valid_h = True
+        else:
+            is_valid_h = False
 
-        self.set_value(Vec2(x, y))
+        # validate p
+        if is_valid_float(self.text_ctrl_y.GetValue()):
+            is_valid_p = True
+        else:
+            is_valid_p = False
+
+        if is_valid_h and is_valid_p:
+            h = float(self.text_ctrl_x.GetValue())
+            p = float(self.text_ctrl_y.GetValue())
+
+            self.set_value(Vec2(h, p))
+
+            self.old_value = Vec2(h, p)
+
+        else:
+            # self.text_ctrl_x.SetValue will call this method, so
+            # temporarily unbind evt_text to prevent stack overflow
+            self.text_ctrl_x.Unbind(wx.EVT_TEXT)
+            self.text_ctrl_y.Unbind(wx.EVT_TEXT)
+
+            self.text_ctrl_x.SetValue(str(self.old_value.x))
+            self.text_ctrl_y.SetValue(str(self.old_value.y))
+
+            self.text_ctrl_x.Bind(wx.EVT_TEXT, self.on_event_text)
+            self.text_ctrl_y.Bind(wx.EVT_TEXT, self.on_event_text)
+
         evt.Skip()
 
     def on_key_down(self, evt):
+        evt.Skip()
+        '''
         key_code = evt.GetKeyCode()
-
         # Allow ASCII numerics, decimals
         if ord('0') <= key_code <= ord('9') or key_code == 46:
             evt.Skip()
-
         else:
             return
-
-        evt.Skip()
+        '''
 
 
 class Vector3Property(WxCustomProperty):
     def __init__(self, parent, prop, *args, **kwargs):
         super().__init__(parent, prop, *args, **kwargs)
+
         self.bold_font = wx.Font(10, wx.DEFAULT, wx.NORMAL, wx.BOLD)
+
+        self.text_ctrl_x = None
+        self.text_ctrl_y = None
+        self.text_ctrl_z = None
+
+        self.old_value = ""
 
     def create_control(self):
         # label = wx.StaticText(self, label=self.label)
         super(Vector3Property, self).create_control()
-        label_x = wx.StaticText(self, label="X")
+        label_x = wx.StaticText(self, label="H")
         label_x.SetFont(self.bold_font)
         label_x.SetForegroundColour(self.text_colour)
         self.text_ctrl_x = wx.TextCtrl(self, size=(0, 18), style=wx.BORDER_DOUBLE, id=ID_TEXT_CHANGE)
 
-        label_y = wx.StaticText(self, label="Y")
+        label_y = wx.StaticText(self, label="P")
         label_y.SetFont(self.bold_font)
         label_y.SetForegroundColour(self.text_colour)
         self.text_ctrl_y = wx.TextCtrl(self, size=(0, 18), style=wx.BORDER_DOUBLE, id=ID_TEXT_CHANGE)
 
-        label_z = wx.StaticText(self, label="Z")
+        label_z = wx.StaticText(self, label="R")
         label_z.SetFont(self.bold_font)
         label_z.SetForegroundColour(self.text_colour)
         self.text_ctrl_z = wx.TextCtrl(self, size=(0, 18), style=wx.BORDER_DOUBLE, id=ID_TEXT_CHANGE)
 
         # set initial value
         property_value = self.get_value()
+        self.old_value = property_value
 
         x = get_rounded_value(property_value.x)
         y = get_rounded_value(property_value.y)
@@ -607,26 +704,66 @@ class Vector3Property(WxCustomProperty):
     def on_event_char(self, evt):
         evt.Skip()
 
-    def on_event_text(self, evt):
-        # now update values
-        x = float(self.text_ctrl_x.GetValue())
-        y = float(self.text_ctrl_y.GetValue())
-        z = float(self.text_ctrl_z.GetValue())
+    def foo(self, evt):
+        pass
 
-        self.set_value(Vec3(x, y, z))
+    def on_event_text(self, evt):
+        # validate h
+        if is_valid_float(self.text_ctrl_x.GetValue()):
+            is_valid_h = True
+        else:
+            is_valid_h = False
+
+        # validate p
+        if is_valid_float(self.text_ctrl_y.GetValue()):
+            is_valid_p = True
+        else:
+            is_valid_p = False
+
+        # validate r
+        if is_valid_float(self.text_ctrl_z.GetValue()):
+            is_valid_r = True
+        else:
+            is_valid_r = False
+
+        if is_valid_h and is_valid_p and is_valid_r:
+            h = float(self.text_ctrl_x.GetValue())
+            p = float(self.text_ctrl_y.GetValue())
+            r = float(self.text_ctrl_z.GetValue())
+
+            self.set_value(Vec3(h, p, r))
+
+            self.old_value = Vec3(h, p, r)
+
+        else:
+            # self.text_ctrl_x.SetValue will call this method, so
+            # temporarily unbind evt_text to prevent stack overflow
+            self.text_ctrl_x.Unbind(wx.EVT_TEXT)
+            self.text_ctrl_y.Unbind(wx.EVT_TEXT)
+            self.text_ctrl_z.Unbind(wx.EVT_TEXT)
+
+            # reset to last known ok value
+            self.text_ctrl_x.SetValue(str(self.old_value.x))
+            self.text_ctrl_y.SetValue(str(self.old_value.y))
+            self.text_ctrl_z.SetValue(str(self.old_value.z))
+
+            # bind again
+            self.text_ctrl_x.Bind(wx.EVT_TEXT, self.on_event_text)
+            self.text_ctrl_y.Bind(wx.EVT_TEXT, self.on_event_text)
+            self.text_ctrl_z.Bind(wx.EVT_TEXT, self.on_event_text)
+
         evt.Skip()
 
     def on_key_down(self, evt):
+        evt.Skip()
+        '''
         key_code = evt.GetKeyCode()
-
         # Allow ASCII numerics, decimals
         if ord('0') <= key_code <= ord('9') or key_code == 46:
             evt.Skip()
-
         else:
             return
-
-        evt.Skip()
+        '''
 
 
 class EnumProperty(WxCustomProperty):
@@ -684,12 +821,11 @@ class SliderProperty(WxCustomProperty):
         self.slider = None
 
     def create_control(self):
-        print(self.get_value())
-        self.slider = wx.Slider(self, 5, minValue=self.property.min_value,
-                                maxValue=self.property.max_value, style=wx.SL_HORIZONTAL)
-
-        # set initial value
-        # self.slider.SetValue(self.get_value())
+        self.slider = wx.Slider(self,
+                                value=self.get_value(),
+                                minValue=self.property.min_value,
+                                maxValue=self.property.max_value,
+                                style=wx.SL_HORIZONTAL)
 
         # add to sizers
         self.sizer.Add(self.ctrlLabel, 0, wx.TOP, border=2)
@@ -699,12 +835,6 @@ class SliderProperty(WxCustomProperty):
 
     def set_control_value(self, val):
         self.slider.SetValue(int(val))
-
-        '''
-            print("error in wxCustomProperties.SliderProperty.set_control_value\
-                   arg val must be of type int or float & arg val must be\
-                   val >= minvalue, val <= maxvalue")
-        '''
 
     def on_event_slider(self, evt):
         self.set_value(self.slider.GetValue())

@@ -127,7 +127,6 @@ class ThreeAxisGrid(Object):
             self.axisLines.moveTo(0, -(self.YSize), 0)
             self.axisLines.drawTo(0, self.YSize, 0)
 
-
         # if (self.ZSize != 0):
         #     # Draw Z axis line
         #     self.axisLines.setColor(self.ZAxisColor)
@@ -135,31 +134,31 @@ class ThreeAxisGrid(Object):
         #     self.axisLines.drawTo(0, 0, self.ZSize)
 
         # Check to see if primary grid lines should be drawn at all
-        if (self.gridStep != 0):
+        if self.gridStep != 0:
 
             # Draw primary grid lines
             self.gridLines.setColor(self.gridColor)
 
             # Draw primary grid lines metering x axis if any x-length
-            if (self.XSize != 0):
+            if self.XSize != 0:
 
-                if ((self.YSize != 0) and (self.XYPlaneShow != 0)):
+                if (self.YSize != 0) and (self.XYPlaneShow != 0):
                     # Draw y lines across x axis starting from center moving out
                     # XY Plane
                     for x in self.myfrange(0, self.XSize, self.gridStep):
-                        self.gridLines.moveTo(x, -(self.YSize), 0)
+                        self.gridLines.moveTo(x, -self.YSize, 0)
                         self.gridLines.drawTo(x, self.YSize, 0)
-                        self.gridLines.moveTo(-x, -(self.YSize), 0)
+                        self.gridLines.moveTo(-x, -self.YSize, 0)
                         self.gridLines.drawTo(-x, self.YSize, 0)
 
-                    if (self.endCapLinesShow != 0):
+                    if self.endCapLinesShow != 0:
                         # Draw endcap lines
-                        self.gridLines.moveTo(self.XSize, -(self.YSize), 0)
+                        self.gridLines.moveTo(self.XSize, -self.YSize, 0)
                         self.gridLines.drawTo(self.XSize, self.YSize, 0)
-                        self.gridLines.moveTo(-(self.XSize), -(self.YSize), 0)
-                        self.gridLines.drawTo(-(self.XSize), self.YSize, 0)
+                        self.gridLines.moveTo(-self.XSize, -self.YSize, 0)
+                        self.gridLines.drawTo(-self.XSize, self.YSize, 0)
 
-                if ((self.ZSize != 0) and (self.XZPlaneShow != 0)):
+                if (self.ZSize != 0) and (self.XZPlaneShow != 0):
                     # Draw z lines across x axis starting from center moving out
                     # XZ Plane
                     for x in self.myfrange(0, self.XSize, self.gridStep):
@@ -253,10 +252,10 @@ class ThreeAxisGrid(Object):
 
             if (self.XSize != 0):
                 adjustedstep = self.gridStep / self.subdiv
-                #print(self.gridStep)
-                #print(self.subdiv)
-                #print(adjustedstep)
-                #print(self.gridStep / self.subdiv)
+                # print(self.gridStep)
+                # print(self.subdiv)
+                # print(adjustedstep)
+                # print(self.gridStep / self.subdiv)
 
                 if ((self.YSize != 0) and (self.XYPlaneShow != 0)):
                     # Draw y lines across x axis starting from center moving out
