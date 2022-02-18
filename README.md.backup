@@ -46,4 +46,4 @@ Are only executed in runtime mode, all changes made in run time (game mode) are 
 ### Editor Plugins
 Are executed in both editor and game mode.
 
-To create a new user module or editor plugin **Resource browser > (AnyFolder) > Create > UserModule or Editor Plugin.**
+To create a new user module or editor plugin **Reso
