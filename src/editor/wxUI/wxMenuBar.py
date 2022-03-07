@@ -10,12 +10,10 @@ EVT_SAVE_AS = wx.NewId()
 EVT_APPEND_LIBRARY = wx.NewId()
 
 EVT_ADD_EDITOR_TAB = wx.NewId()
-EVT_ADD_GAME_TAB = wx.NewId()
 EVT_ADD_INSPECTOR_TAB = wx.NewId()
 EVT_ADD_RESOURCES_TAB = wx.NewId()
-EVT_ADD_RESOURCE_TILES_TAB = wx.NewId()
-EVT_ADD_PREFERENCES_TAB = wx.NewId()
 EVT_ADD_LOG_TAB = wx.NewId()
+EVT_ADD_AUXILIARY_TAB = wx.NewId()
 
 EVT_UI_SAVE_LAYOUT = wx.NewId()
 
@@ -38,12 +36,10 @@ EVT_CLOSE_APP = wx.NewId()
 
 UI_TAB_EVENTS = {
     EVT_ADD_EDITOR_TAB: "EditorViewport",
-    EVT_ADD_GAME_TAB: "GameViewport",
     EVT_ADD_INSPECTOR_TAB: "ObjectInspectorTab",
     EVT_ADD_RESOURCES_TAB: "ResourceBrowser",
-    EVT_ADD_RESOURCE_TILES_TAB: "ResourceTiles",
-    EVT_ADD_PREFERENCES_TAB: "PreferencesTab",
     EVT_ADD_LOG_TAB: "LogTab",
+    EVT_ADD_AUXILIARY_TAB: "AuxiliaryPanel"
 }
 
 UI_LAYOUT_EVENTS = {
@@ -118,14 +114,6 @@ class WxMenuBar(wx.MenuBar):
                       ]
         build_menu_bar(proj_menu, menu_items)
 
-        '''
-        # assets library_menu
-        assets_menu = wx.Menu()
-        self.Append(assets_menu, "Library")
-        menu_items = [(EVT_IMPORT_ASSETS, "&Import Assets", None)]
-        build_menu_bar(assets_menu, menu_items)
-        '''
-
         # add objects section
         object_menu = wx.Menu()
         self.Append(object_menu, "Object")
@@ -164,7 +152,8 @@ class WxMenuBar(wx.MenuBar):
 
         menu_items = [(EVT_ADD_INSPECTOR_TAB, "InspectorTab", None),
                       (EVT_ADD_RESOURCES_TAB, "ResourceBrowser", None),
-                      (EVT_ADD_LOG_TAB, "LogTab", None)]
+                      (EVT_ADD_LOG_TAB, "LogTab", None),
+                      (EVT_ADD_AUXILIARY_TAB, "AuxiliaryPanel", None)]
         build_menu_bar(tabs_menu, menu_items)
 
         # editor layout        

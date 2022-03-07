@@ -74,6 +74,12 @@ class WxCustomProperty(wx.Window):
         self.SetSizer(self.sizer)
         self.Layout()
 
+    def bind_events(self):
+        pass
+
+    def unbind_events(self):
+        pass
+
     def on_control_init(self):
         pass
 
@@ -202,6 +208,8 @@ class IntProperty(WxCustomProperty):
         evt.Skip()
 
     def on_key_down(self, evt):
+        evt.Skip()
+        return
         key_code = evt.GetKeyCode()
         # Allow ASCII numerics
         if ord('0') <= key_code <= ord('9'):
@@ -550,19 +558,16 @@ class Vector2Property(WxCustomProperty):
         self.sizer.AddSpacer(CONTROL_MARGIN_RIGHT)
 
         # bind events
-        # bind char events
-        self.text_ctrl_x.Bind(wx.EVT_CHAR, self.on_event_char)
-        self.text_ctrl_y.Bind(wx.EVT_CHAR, self.on_event_char)
+        self.bind_events()
+        self.Refresh()
 
-        # bind text events
+    def bind_events(self):
         self.text_ctrl_x.Bind(wx.EVT_TEXT, self.on_event_text)
         self.text_ctrl_y.Bind(wx.EVT_TEXT, self.on_event_text)
 
-        # bind key down events
-        self.text_ctrl_x.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
-        self.text_ctrl_y.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
-
-        self.Refresh()
+    def unbind_events(self):
+        self.text_ctrl_x.Unbind(wx.EVT_TEXT)
+        self.text_ctrl_y.Unbind(wx.EVT_TEXT)
 
     def set_control_value(self, val):
         x = get_rounded_value(val.x)
@@ -592,33 +597,23 @@ class Vector2Property(WxCustomProperty):
             p = float(self.text_ctrl_y.GetValue())
 
             self.set_value(Vec2(h, p))
-
             self.old_value = Vec2(h, p)
 
         else:
-            # self.text_ctrl_x.SetValue will call this method, so
-            # temporarily unbind evt_text to prevent stack overflow
-            self.text_ctrl_x.Unbind(wx.EVT_TEXT)
-            self.text_ctrl_y.Unbind(wx.EVT_TEXT)
+            # temporarily unbind events otherwise this will cause a stack overflow,
+            # since call to SetValue will call this method again.
+            self.bind_events()
 
             self.text_ctrl_x.SetValue(str(self.old_value.x))
             self.text_ctrl_y.SetValue(str(self.old_value.y))
 
-            self.text_ctrl_x.Bind(wx.EVT_TEXT, self.on_event_text)
-            self.text_ctrl_y.Bind(wx.EVT_TEXT, self.on_event_text)
+            # bind events again
+            self.unbind_events()
 
         evt.Skip()
 
     def on_key_down(self, evt):
         evt.Skip()
-        '''
-        key_code = evt.GetKeyCode()
-        # Allow ASCII numerics, decimals
-        if ord('0') <= key_code <= ord('9') or key_code == 46:
-            evt.Skip()
-        else:
-            return
-        '''
 
 
 class Vector3Property(WxCustomProperty):
@@ -678,19 +673,35 @@ class Vector3Property(WxCustomProperty):
         self.sizer.AddSpacer(CONTROL_MARGIN_RIGHT)
 
         # bind events
-        self.text_ctrl_x.Bind(wx.EVT_CHAR, self.on_event_char)
-        self.text_ctrl_y.Bind(wx.EVT_CHAR, self.on_event_char)
-        self.text_ctrl_z.Bind(wx.EVT_CHAR, self.on_event_char)
+        self.bind_events()
+
+        self.Refresh()
+
+    def bind_events(self):
+        # self.text_ctrl_x.Bind(wx.EVT_CHAR, self.on_event_char)
+        # self.text_ctrl_y.Bind(wx.EVT_CHAR, self.on_event_char)
+        # self.text_ctrl_z.Bind(wx.EVT_CHAR, self.on_event_char)
 
         self.text_ctrl_x.Bind(wx.EVT_TEXT, self.on_event_text)
         self.text_ctrl_y.Bind(wx.EVT_TEXT, self.on_event_text)
         self.text_ctrl_z.Bind(wx.EVT_TEXT, self.on_event_text)
 
-        self.text_ctrl_x.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
-        self.text_ctrl_y.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
-        self.text_ctrl_z.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        # self.text_ctrl_x.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        # self.text_ctrl_y.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        # self.text_ctrl_z.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
 
-        self.Refresh()
+    def unbind_events(self):
+        # self.text_ctrl_x.Unbind(wx.EVT_CHAR)
+        # self.text_ctrl_y.Unbind(wx.EVT_CHAR)
+        # self.text_ctrl_z.Unbind(wx.EVT_CHAR)
+
+        self.text_ctrl_x.Unbind(wx.EVT_TEXT)
+        self.text_ctrl_y.Unbind(wx.EVT_TEXT)
+        self.text_ctrl_z.Unbind(wx.EVT_TEXT)
+
+        # self.text_ctrl_x.Unbind(wx.EVT_KEY_DOWN)
+        # self.text_ctrl_y.Unbind(wx.EVT_KEY_DOWN)
+        # self.text_ctrl_z.Unbind(wx.EVT_KEY_DOWN)
 
     def set_control_value(self, val):
         x = get_rounded_value(val.x)
@@ -703,9 +714,6 @@ class Vector3Property(WxCustomProperty):
 
     def on_event_char(self, evt):
         evt.Skip()
-
-    def foo(self, evt):
-        pass
 
     def on_event_text(self, evt):
         # validate h
@@ -731,16 +739,24 @@ class Vector3Property(WxCustomProperty):
             p = float(self.text_ctrl_y.GetValue())
             r = float(self.text_ctrl_z.GetValue())
 
-            self.set_value(Vec3(h, p, r))
+            # apply value limit
+            if self.property.value_limit is not None:
+                if h < self.property.value_limit.x:
+                    h = self.property.value_limit.x
 
+                if p < self.property.value_limit.x:
+                    p = self.property.value_limit.x
+
+                if r < self.property.value_limit.x:
+                    r = self.property.value_limit.x
+
+            self.set_value(Vec3(h, p, r))
             self.old_value = Vec3(h, p, r)
 
         else:
             # self.text_ctrl_x.SetValue will call this method, so
             # temporarily unbind evt_text to prevent stack overflow
-            self.text_ctrl_x.Unbind(wx.EVT_TEXT)
-            self.text_ctrl_y.Unbind(wx.EVT_TEXT)
-            self.text_ctrl_z.Unbind(wx.EVT_TEXT)
+            self.unbind_events()
 
             # reset to last known ok value
             self.text_ctrl_x.SetValue(str(self.old_value.x))
@@ -748,22 +764,12 @@ class Vector3Property(WxCustomProperty):
             self.text_ctrl_z.SetValue(str(self.old_value.z))
 
             # bind again
-            self.text_ctrl_x.Bind(wx.EVT_TEXT, self.on_event_text)
-            self.text_ctrl_y.Bind(wx.EVT_TEXT, self.on_event_text)
-            self.text_ctrl_z.Bind(wx.EVT_TEXT, self.on_event_text)
+            self.bind_events()
 
         evt.Skip()
 
     def on_key_down(self, evt):
         evt.Skip()
-        '''
-        key_code = evt.GetKeyCode()
-        # Allow ASCII numerics, decimals
-        if ord('0') <= key_code <= ord('9') or key_code == 46:
-            evt.Skip()
-        else:
-            return
-        '''
 
 
 class EnumProperty(WxCustomProperty):
@@ -799,11 +805,7 @@ class EnumProperty(WxCustomProperty):
         evt.Skip()
 
     def set_control_value(self, val):
-        if type(val) is not int:
-            val = int(val)
-
-        if val < len(self.property.get_choices()):
-            self.choice.SetSelection(val)
+        self.choice.SetSelection(val)
 
     def on_event_choice(self, evt):
         value = self.choice.GetSelection()

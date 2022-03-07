@@ -1,7 +1,6 @@
+import editor.utils as EdUtils
 from panda3d.core import NodePath
 from panda3d.core import Vec3
-from editor.utils import Math
-from editor.utils import EdProperty
 
 
 class BaseNp(NodePath):
@@ -20,29 +19,43 @@ class BaseNp(NodePath):
         self.create_properties()
         self.create_save_data()
 
+        self.setPythonTag("PICKABLE", self)
+
     def start_update(self):
-        self._task = taskMgr.add(self.update, '%sUpdate' % self.getName())
+        self._task = taskMgr.add(self.update, '%sUpdate' % self.getName(), sort=1)
 
     def update(self, task):
-        scale = (self.getPos() - self.le.panda_app.showbase.ed_camera.getPos()).length() / 80
-        self.setScale(scale)
         return task.cont
 
     def create_properties(self):
-        pos = EdProperty.FuncProperty(name="Position", value=self.getPos(),
-                                      setter=self.setPos, getter=self.getPos)
+        name = EdUtils.EdProperty.FuncProperty(name="Name      ",
+                                               value=self.get_name(),
+                                               setter=self.set_name,
+                                               getter=self.get_name)
 
-        rot = EdProperty.FuncProperty(name="Rotation", value=self.get_ed_rotation(),
-                                      setter=self.set_ed_rotation, getter=self.get_ed_rotation)
+        pos = EdUtils.EdProperty.FuncProperty(name="Position",
+                                              value=self.getPos(),
+                                              setter=self.setPos,
+                                              getter=self.getPos)
 
-        scale = EdProperty.FuncProperty(name="Scale    ", value=self.getScale(),
-                                        setter=self.setScale, getter=self.getScale)
+        rot = EdUtils.EdProperty.FuncProperty(name="Rotation",
+                                              value=self.getHpr(),
+                                              setter=self.setHpr,
+                                              getter=self.getHpr)
 
+        scale = EdUtils.EdProperty.FuncProperty(name="Scale    ",
+                                                value=self.getScale(),
+                                                value_limit=Vec3(0.01, 0.01, 0.01),
+                                                setter=self.set_scale,
+                                                getter=self.getScale)
+
+        self.properties.append(name)
         self.properties.append(pos)
         self.properties.append(rot)
         self.properties.append(scale)
 
     def create_save_data(self):
+        # format = save_data["variable"] = [value, getter, setter]
         self._save_data_infos["Pos"] = [Vec3, self.getPos, self.setPos]
         self._save_data_infos["Rot"] = [Vec3, self.getHpr, self.setHpr]
         self._save_data_infos["Scale"] = [Vec3, self.getScale, self.setScale]
@@ -50,20 +63,17 @@ class BaseNp(NodePath):
     def save_data(self):
         self._save_data.clear()
         for key in self._save_data_infos.keys():
-            prop = EdProperty.FuncProperty(name=key,
-                                           value=self._save_data_infos[key][1](),
-                                           setter=self._save_data_infos[key][2])
+            prop = EdUtils.EdProperty.FuncProperty(name=key,
+                                                   value=self._save_data_infos[key][1](),
+                                                   setter=self._save_data_infos[key][2])
             self._save_data.append(prop)
 
     def restore_data(self):
         for prop in self._save_data:
-            setter = prop.get_setter()
-            setter(prop.get_value())
+            setter = prop.setter
+            setter(prop.val)
 
         self.update_properties()
-
-    def get_ed_data(self):
-        pass
 
     def get_uid(self):
         return self.uid
@@ -71,25 +81,16 @@ class BaseNp(NodePath):
     def get_properties(self):
         return self.properties
 
-    def get_ed_rotation(self):
-        return self.getHpr()
-
-    def set_ed_rotation(self, val):
-        self.setHpr(val)
-
-    def set_ed_data(self, data):
-        pass
-
     def update_properties(self):
         for prop in self.properties:
-            x = prop.get_getter()
+            x = prop.getter
             if x:
                 prop.set_value(x())
             else:
                 prop.set_value(getattr(self, prop.get_name()))
 
     def on_property_modified(self, prop, value):
-        x = prop.get_setter()
+        x = prop.setter
         x(self, value)
 
     def on_remove(self):

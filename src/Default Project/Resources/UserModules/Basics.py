@@ -1,10 +1,9 @@
-import math
 import panda3d.core as p3dCore
-from editor.p3d.pModBase import PModBase
+from editor.core.pModBase import PModBase
 from editor.utils import EdProperty
 
 
-class Tutorial(PModBase):
+class Basics(PModBase):
     def __init__(self, *args, **kwargs):
         """__init__ should not be used for anything but variable declaration"""
 
@@ -21,16 +20,17 @@ class Tutorial(PModBase):
         self.vector_2 = p3dCore.Vec3(25, 46)
 
         # Custom properties
-
         self.add_property(EdProperty.EmptySpace(0, 10))  # add some empty space
+
         self.add_property(EdProperty.Label(name="Custom Properties", is_bold=True))  # label
 
         self.add_property(EdProperty.ButtonProperty("Button", self.on_button))  # button
 
         # slider
-        self.__temperature = 5  # private to hide in inspector
+        self.temperature = 5  # private to hide in inspector
+        self.add_hidden_variable("temperature")
         self.add_property(EdProperty.Slider("Temperature",
-                                            value=self.__temperature,  # initial value
+                                            value=self.temperature,  # initial value
                                             min_value=0,
                                             max_value=10,
                                             setter=self.set_temperature,
@@ -39,41 +39,33 @@ class Tutorial(PModBase):
 
         # choice property
         self.choices = ["Apple", "PineApple", "BigApple"]
-        self.__curr_choice = 0
+        self.curr_choice = 0
+        self.add_hidden_variable("curr_choice")
         self.add_property(EdProperty.ChoiceProperty("Apple",
                                                     choices=self.choices,
-                                                    value=self.__curr_choice,  # initial value
+                                                    value=self.curr_choice,  # initial value
                                                     setter=self.set_choice,
                                                     getter=self.get_choice))
 
         self.add_property(EdProperty.EmptySpace(0, 5))  # add some empty space
 
-    # on_start method is called once
     def on_start(self):
-        # --------------------------------- #
-        # Tutorial - uncomment lines with * #
-        # --------------------------------- #
+        """on_start method is called only once"""
 
         # get access to other user modules or editor plugins
-        # *test_module = self.le.get_mod_instance("TestModule")
-        # *test_module.foo()
+        test_module = self._le.get_mod_instance("TestModule")
+        if test_module is not None:
+            test_module.foo()
 
-        # get the player cam
-        self.player_cam = self.le.get_player_camera()
+        self.player_cam = self._le.player_camera  # get the player cam
 
-        # load a 3d model
-        smiley = self.load_model("Resources/Models/smiley.egg")
-        smiley.setScale(10)
+        np = self._render.find("**/smiley.egg")  # scene graph search
 
-        # find a 3d model
-        np = self.rootNp.find("**/GameRender/smiley*")
-        np.setScale(20)
+        self.accept("a", self.bar, [])  # event handling
 
-        # basic event handling
-        # *self.accept("a", self.bar, ["messenger event"])
+        win = self._win  # the window we are rendering into currently
 
-        # win = self.win  # the window we are rendering into currently
-        # mouse_watcher_node = self.mouse_watcher_node
+        mouse_watcher_node = self._mouse_watcher_node  # mouse watcher node
 
     def on_update(self):
         """update method is called every frame"""
@@ -90,14 +82,13 @@ class Tutorial(PModBase):
         print("button pressed")
 
     def set_temperature(self, val):
-        self.__temperature = val
+        self.temperature = val
 
     def get_temperature(self):
-        return self.__temperature
+        return self.temperature
 
     def set_choice(self, val):
-        self.__curr_choice = val
-        print(self.__curr_choice)
+        self.curr_choice = val
 
     def get_choice(self):
-        return self.__curr_choice
+        return self.curr_choice

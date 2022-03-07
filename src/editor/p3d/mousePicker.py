@@ -99,12 +99,4 @@ class MousePicker(SingleTask):
             self.node = collEntry.getIntoNodePath()
             return self.node
 
-            '''
-            print("selected object=> {0} type=> {1} hasPythonTag=> {2}".
-                format(collEntry.getIntoNodePath(),
-                    type(collEntry.getIntoNodePath()),
-                    collEntry.getIntoNodePath().hasNetPythonTag("PICKABLE")
-                    ))
-            '''
-
         return None

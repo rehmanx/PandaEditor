@@ -14,8 +14,8 @@ class DialogManager:
         self.active_dialogues = []
 
     def create_dialog(self, dialog_type: str, *args, **kwargs):
-        if dialog_type in self.active_dialogues:
-            pass
+        if len(self.active_dialogues) > 0:
+            print("DialogManager --> Another dialog is already opened.")
 
         elif dialog_type in self.dialogues.keys():
             dialog = self.dialogues[dialog_type]
@@ -25,15 +25,20 @@ class DialogManager:
             dialog.Center()
             dialog.Show()
 
+            self.active_dialogues.append(dialog_type)
+
             return dialog
 
         else:
-            print("dialogue type: {0} not found".format(dialog_type))
+            print("DialogManager --> dialogue type: {0} not found".format(dialog_type))
 
 
 class WxCustomDialog(wx.Frame):
-    def __init__(self, _title, _close_method=None, *args, **kwargs):
+    def __init__(self, _title, dialog_manager, _close_method=None, *args, **kwargs):
         super(WxCustomDialog, self).__init__(parent=None, title=_title)
+
+        self.dialog_manager = dialog_manager
+        self.dialog_type = None
 
         # method to be called when ok/yes button of dialog is clicked
         self.ok_call = kwargs.pop("ok_call", None)
@@ -63,6 +68,7 @@ class WxCustomDialog(wx.Frame):
 
     def on_ok_button(self, event):
         event.Skip()
+        # self.dialog_manager.active_dialogues.remove(self.d)
 
     def on_cancel_button(self, event):
         if self.cancel_call is not None:
@@ -73,6 +79,9 @@ class WxCustomDialog(wx.Frame):
     def on_event_close(self, event):
         if self.close_call is not None:
             self.close_call()
+
+        self.dialog_manager.active_dialogues.remove(self.dialog_type)
+
         event.Skip()
 
     def on_event_size(self, event):
@@ -83,10 +92,12 @@ class WxTextEntryDialog(WxCustomDialog):
     def __init__(self, *args, **kwargs):
         WxCustomDialog.__init__(self, *args, **kwargs)
 
+        self.dialog_type = "TextEntryDialog"
+
         if self.descriptor_text is None:
             self.descriptor_text = "Enter text"
 
-        self.starting_text = kwargs.pop("starting_text", "")
+        self.initial_text = kwargs.pop("initial_text", "")
 
         self.wx_text_ctrl = None
 
@@ -101,7 +112,7 @@ class WxTextEntryDialog(WxCustomDialog):
 
         text = wx.StaticText(panel, label=self.descriptor_text)
         self.wx_text_ctrl = wx.TextCtrl(panel)
-        self.wx_text_ctrl.SetValue(self.starting_text)
+        self.wx_text_ctrl.SetValue(self.initial_text)
 
         self.ok_button_id = wx.NewId()
         self.cancel_button_id = wx.NewId()
@@ -134,6 +145,8 @@ class WxTextEntryDialog(WxCustomDialog):
 class WxYesNoDialog(WxCustomDialog):
     def __init__(self, *args, **kwargs):
         WxCustomDialog.__init__(self, *args, **kwargs)
+
+        self.dialog_type = "YesNoDialog"
 
         if self.descriptor_text is None:
             self.descriptor_text = "Are you sure you want to perform this action ?"
@@ -188,6 +201,8 @@ class WxYesNoDialog(WxCustomDialog):
 class ProjectDialog(WxCustomDialog):
     def __init__(self, *args, **kwargs):
         WxCustomDialog.__init__(self, *args, **kwargs)
+
+        self.dialog_type = "ProjectDialog"
 
         self.project_name = ""
         self.path = ""
@@ -269,12 +284,6 @@ class ProjectDialog(WxCustomDialog):
     def on_ok_button(self, event):
         if self.ok_call is not None:
             self.ok_call(self.proj_name_txtctrl.GetValue(), self.proj_path_txtctrl.GetValue())
-        event.Skip()
-
-    def on_cancel_button(self, event):
-        if self.cancel_call is not None:
-            self.cancel_call()
-        self.Close()
         event.Skip()
 
     def on_browse_btn(self, evt):

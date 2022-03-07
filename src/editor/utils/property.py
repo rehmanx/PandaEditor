@@ -1,13 +1,16 @@
-from editor.utils.exceptionHandler import try_execute
+from panda3d.core import Vec3, Vec2
+from editor.utils.exceptionHandler import try_execute, try_execute_1
 
 
 class Property:
-    def __init__(self, name, value, _type=None):
+    def __init__(self, name, value, value_limit=None, _type=None):
         self.name = name
         self.val = value
         self._type = _type
 
         self.is_valid = False
+        self.value_limit = value_limit
+        self.acceptable_value_limit_types = [int, float, Vec2, Vec3]
 
         if _type is None:
             self._type = type(value)
@@ -33,56 +36,58 @@ class Property:
         if type(self.name) is not str:
             self.is_valid = False
             return
+
+        if self.value_limit is not None:
+            if type(self.value_limit) in self.acceptable_value_limit_types:
+                pass
+            else:
+                print("Property --> failed to varify property {0}, limit_value must be of type"
+                      "int, float, Vec2, Vec3".format(self.name))
+                self.is_valid = False
+                return
+
         self.is_valid = True
 
 
-class FuncProperty(Property):
-    def __init__(self, name, value, _type=None, obj=None, setter=None, getter=None):
-        self.obj = obj
-        self.setter = setter
-        self.getter = getter
+class ObjProperty(Property):
+    def __init__(self, name, value, obj, _type=None, value_limit=None):
+        super().__init__(name=name, value=value, _type=_type, value_limit=value_limit)
 
-        super().__init__(name=name, value=value, _type=_type)
+        self.obj = obj
 
     def validate(self):
         if hasattr(self.obj, self.name):
             self.is_valid = True
             return
 
+        super().validate()
+
+    def set_value(self, val):
+        setattr(self.obj, self.name, val)
+
+    def get_value(self):
+        return getattr(self.obj, self.name)
+
+
+class FuncProperty(Property):
+    def __init__(self, name, value, value_limit=None, _type=None, setter=None, getter=None):
+        super().__init__(name=name, value=value, _type=_type, value_limit=value_limit)
+
+        self.setter = setter
+        self.getter = getter
+
+    def validate(self):
         if self.setter is None or self.getter is None:
             self.is_valid = False
 
         super().validate()
 
-    def get_object(self):
-        return self.obj
-
-    def get_getter(self):
-        return self.getter
-
-    def get_setter(self):
-        return self.setter
-
     def get_value(self, *args, **kwargs):
-        if hasattr(self.obj, self.name):
-            return getattr(self.obj, self.name)
-
-        elif self.get_getter() is not None:
-            getter = self.get_getter()
-            return getter()
-
-        else:
-            return self.val
+        getter = self.getter
+        return try_execute_1(getter)
 
     def set_value(self, val, *args, **kwargs):
-        if hasattr(self.obj, self.name):
-            setattr(self.obj, self.name, val)
-
-        elif self.get_getter() is not None:
-            try_execute(self.setter, val, *args, **kwargs)
-
-        else:
-            self.val = val
+        try_execute(self.setter, val, *args, **kwargs)
 
 
 class EmptySpace(Property):
@@ -114,35 +119,11 @@ class Label(Property):
         super().validate()
 
 
-class ListProperty(FuncProperty):
-    class ListItemInfo:
-        def __init__(self, name, index):
-            self.name = name
-            self.index = index
-
-    def __init__(self, name, value, obj, lst_item_info):
-        FuncProperty.__init__(self, name, value, list, obj)
-        self.list_item_info = lst_item_info
-
-    def set_value(self, val, *args, **kwargs):
-        list_obj = getattr(self.obj, self.list_item_info.name)
-        list_obj[self.list_item_info.index] = val
-
-    def get_value(self):
-        list_obj = getattr(self.obj, self.list_item_info.name)
-        return list_obj[self.list_item_info.index]
-
-    def get_list_item_info(self):
-        return self.list_item_info
-
-
 class ButtonProperty(Property):
     def __init__(self, name, func):
         self.func = func
 
-        super().__init__(name=name, value=None)
-
-        self._type = "button"
+        super().__init__(name=name, value=None, _type="button")
 
     def validate(self):
         if self.func is None:
@@ -168,25 +149,21 @@ class ChoiceProperty(FuncProperty):
         # choices must be greater than 1
         if len(self.choices) <= 1:
             self.is_valid = False
-            print("ok_1")
             return
 
         # all choices must be string
         for item in self.choices:
             if type(item) is not str:
                 self.is_valid = False
-                print("ok_2")
                 return
 
         # value must be int
         if type(self.val) is not int:
             self.is_valid = False
-            print("ok_3")
             return
 
         if self.setter is None or self.getter is None:
             self.is_valid = False
-            print("ok_4")
             return
 
         self.is_valid = True
@@ -199,12 +176,12 @@ class ChoiceProperty(FuncProperty):
             print("error in edUI.ChoiceProperty.set_value arg val must be of type int")
             return
 
-        super(ChoiceProperty, self).set_value(val, *args, **kwargs)
+        super().set_value(val, *args, **kwargs)
 
 
 class Slider(FuncProperty):
-    def __init__(self, name, value, min_value, max_value, obj=None, setter=None, getter=None):
-        FuncProperty.__init__(self, name=name, obj=obj, value=value, setter=setter, getter=getter)
+    def __init__(self, name, value, min_value, max_value, setter, getter):
+        FuncProperty.__init__(self, name=name, value=value, _type="slider", setter=setter, getter=getter)
 
         self._type = "slider"
 
@@ -212,10 +189,10 @@ class Slider(FuncProperty):
         self.max_value = max_value
 
         if self.is_valid:
-            if self.value < self.min_value:
-                self.value = self.min_value
-            if self.value > self.max_value:
-                self.value = self.max_value
+            if self.val < self.min_value:
+                self.val = self.min_value
+            if self.val > self.max_value:
+                self.val = self.max_value
 
     def validate(self):
         # value must be int
@@ -226,11 +203,6 @@ class Slider(FuncProperty):
         # min max range should also be int
         if type(self.min_value) is not int or type(self.max_value) is not int:
             self.is_valid = False
-            return
-
-        # here if obj is None check (obj has priority over setter/getter) for getter and setter
-        if self.obj is not None:
-            self.is_valid = True
             return
 
         if self.setter is None or self.getter is None:

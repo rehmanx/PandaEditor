@@ -1,32 +1,39 @@
 import traceback
 
 
-# TO: DO different exception handlers of log error and return value
 def try_execute(func, *args, **kwargs):
-    # awful too much garbage collection
-    b_should_return_func_val = False
-    log_error = True
+    """Try to execute a function, return value is False in case of an exception,
+    otherwise True"""
 
-    if "return_func_val" in kwargs:
-        b_should_return_func_val = kwargs.pop("return_func_val")
+    try:
+        func(*args, **kwargs)
+    except Exception as exc:
+        tb_str = traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__)
+        
+        print("Exception occurred...!")
 
-    if "log_error" in kwargs:
-        log_error = kwargs.pop("log_error")
+        for x in tb_str:
+            print(x)
+            
+        return False
+
+    return True
+
+
+def try_execute_1(func, *args, **kwargs):
+    """Try to execute a function, return value is None in case of an exception,
+    otherwise returns the value returned by function"""
 
     try:
         val = func(*args, **kwargs)
     except Exception as exc:
         tb_str = traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__)
-        
+
         print("Exception occurred...!")
-        
-        if log_error:
-            for x in tb_str:
-                print(x)
-            
-        return False
 
-    if b_should_return_func_val:
-        return val
+        for x in tb_str:
+            print(x)
 
-    return True
+        return None
+
+    return val

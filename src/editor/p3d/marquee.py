@@ -65,7 +65,7 @@ class Marquee(NodePath, SingleTask):
         # Convert it through the lens to render2d coordinates
         p2 = Point2()
 
-        if not self.camera.GetLens().project(p3, p2):
+        if not self.camera.node().getLens().project(p3, p2):
             return False
 
         # Test point is within bounds of the marquee

@@ -1,7 +1,7 @@
 from direct.showbase import ShowBase as SB
 from panda3d.core import NodePath, Camera, OrthographicLens, PGTop, BitMask32
-from editor.p3d import EditorCamera, CAM_USE_DEFAULT, CAM_DEFAULT_STYLE, CAM_VIEWPORT_AXES
 from editor.constants import ED_GEO_MASK, GAME_GEO_MASK
+from editor.core import EditorCamera
 
 
 class ShowBase(SB.ShowBase):
@@ -27,22 +27,22 @@ class ShowBase(SB.ShowBase):
         self.ed_mouse_watcher_node = None
 
         self.forcedAspectWins = []
+        self.update_task = None
 
     def finish_init(self):
         self.init_editor_win()
         self.setup_editor_window()
-        
+
         # Add the editor window, camera and pixel 2d to the list of forced
         # aspect windows so aspect is fixed when the window is resized.
-        self.forcedAspectWins = []
         self.forcedAspectWins.append((self.win, self.ed_camera, self.ed_pixel_2d))
-        
+
         # turn on per pixel lightning
         self.edRender.setShaderAuto()
-                                      
+
     def init_editor_win(self):
         self.ed_wx_win.Initialize(useMainWin=True)
-        
+
     def setup_editor_window(self):
         """set up an editor rendering, it included setting up 2d and 3d display regions,
         an editor scene graph and editor mouse watchers"""
@@ -71,19 +71,19 @@ class ShowBase(SB.ShowBase):
         self.edDr2d = self.win.makeDisplayRegion()
         self.edDr2d.setSort(20)
         self.edDr2d.setActive(True)
-        
+
         # create a new 2d scene graph
         self.edRender2d = NodePath('edRender2d')
         self.edRender2d.setDepthTest(False)
         self.edRender2d.setDepthWrite(False)
-        
+
         # create a 2d camera for 2d display region
         my_camera_2d = NodePath(Camera('myCam2d'))
         lens = OrthographicLens()
         lens.setFilmSize(2, 2)
         lens.setNearFar(-1000, 1000)
         my_camera_2d.node().setLens(lens)
-        
+
         my_camera_2d.reparentTo(self.edRender2d)
         self.edDr2d.setCamera(my_camera_2d)
 
@@ -107,21 +107,15 @@ class ShowBase(SB.ShowBase):
         self.edDr.setClearColorActive(True)
         self.edDr.setClearColor((0.6, 0.6, 0.6, 1.0))
 
-        # create a new 3d camera
         self.ed_camera = EditorCamera(
-            'camera',
-            style=CAM_VIEWPORT_AXES,
-            speed=0.5,
-            pos=(300, 150+300, 100+300),
-            rootNp=self.edRender,
-            rootP2d=self.ed_pixel_2d,
+            mouse_watcher_node=self.ed_mouse_watcher_node,
             win=self.ed_win,
-            mouseWatcherNode=self.ed_mouse_watcher_node
+            default_pos=(300, 150 + 300, 100 + 300),
         )
 
         self.ed_camera.node().setCameraMask(ED_GEO_MASK)
         self.ed_camera.reparentTo(self.edRender)
-        self.ed_camera.Start()
+        self.ed_camera.start()
         self.set_ed_dr_camera(self.ed_camera)
 
     def setup_game_window(self):

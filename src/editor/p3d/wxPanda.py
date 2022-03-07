@@ -155,7 +155,7 @@ class Viewport(wx.Panel):
             object_manager.get("ProjectBrowser").end_drag()
 
     def OnMouseHover(self, x, y):
-        cam = self.wx_main.panda_app.level_editor.get_ed_camera()
+        cam = self.wx_main.panda_app.level_editor.panda_app.showbase.ed_camera
         mousePointer = self.wx_main.panda_app.showbase.ed_mouse_watcher_node
 
         for model in self.models:

@@ -76,14 +76,22 @@ class BaseInspectorPanel(ScrolledPanel):
         self.selected_object = obj
         self._is_active = True
 
-        properties = obj.get_properties()
+        try:
+            name = self.selected_object._name
+        except AttributeError:
+            name = self.selected_object.get_name()
 
-        # create a fold panel
-        name = self.selected_object.get_name()
         name = name[0].upper() + name[1:]
+
         fold_panel = self.fold_manager.add_panel(name)
 
+        properties = obj.get_properties()
+
+        check_for_hidden = hasattr(obj, "_hidden_properties")
+
         for prop in properties:
+            if check_for_hidden and obj._hidden_properties.__contains__(prop.name):
+                continue
             prop.validate()
             if prop.is_valid:
                 self.create_wx_prop_object(prop, fold_panel, self.offset)
@@ -118,11 +126,11 @@ class BaseInspectorPanel(ScrolledPanel):
         for key in self.property_and_name.keys():
             wx_prop = self.property_and_name[key]
 
-            if wx_prop.property.get_type() in ["button", "choice"]:
+            if wx_prop.property.get_type() in ["button"]:
                 continue
 
-            if wx_prop._can_set_value:
-                wx_prop.set_control_value(wx_prop.property.get_value())
+            # print(wx_prop.property.get_value())
+            wx_prop.set_control_value(wx_prop.property.get_value())
 
     def refresh(self, obj=None):
         if obj is not None:

@@ -1,17 +1,17 @@
 import editor.gizmos as gizmos
+import editor.core as edCore
 
 from editor.showBase import ShowBase
 from direct.showbase.ShowBase import taskMgr
 from editor.wxUI.wxMain import WxFrame
 from editor.levelEditor import LevelEditor
-from editor.p3d import ThreeAxisGrid, wxPanda, MOUSE_ALT
+from editor.p3d import wxPanda, MOUSE_ALT
 from editor.selection import Selection
 from editor.constants import *
 from panda3d.core import WindowProperties
 
 
 class MyApp(wxPanda.App):
-
     _auto_center_mouse = False
     wx_main = None
     showbase = None
@@ -46,8 +46,8 @@ class MyApp(wxPanda.App):
 
         self.showbase.finish_init()
 
-        self.grid = ThreeAxisGrid(rootNp=self.showbase.edRender, xsize=200, ysize=200, gridstep=20,
-                                  subdiv=4)
+        self.grid = edCore.ThreeAxisGrid(rootNp=self.showbase.edRender, xsize=200, ysize=200, gridstep=20,
+                                         subdiv=4)
         self.grid_np = self.grid.create()
         self.grid_np.reparent_to(self.showbase.edRender)
         self.grid_np.show(ED_GEO_MASK)
@@ -86,13 +86,9 @@ class MyApp(wxPanda.App):
         self.bind_key_events()
 
         # start update and late update tasks
-        self.update_task = taskMgr.add(self.update, 'EditorUpdateTask', sort=0)
-        self.late_update_task = taskMgr.add(self.late_update, 'EditorLateUpdateTask', sort=1)
+        self.update_task = taskMgr.add(self.update, 'EditorUpdateTask', sort=1)
 
-        # setup a default working project
-        # curr_working_dir = os.getcwd()
-        # default_dir = curr_working_dir + "\\game"
-        # self.level_editor.load_default_project(default_dir)
+        # start the level editor
         self.level_editor.start()
 
     def setup_selection_system(self):
@@ -106,7 +102,8 @@ class MyApp(wxPanda.App):
 
     def setup_gizmo_manager(self):
         """Create gizmo manager."""
-        self.gizmo_mgr_root_np = self.showbase.edRender.attachNewNode('gizmoManager')
+        self.gizmo_mgr_root_np = self.showbase.edRender.attachNewNode('Gizmos')
+
         kwargs = {
             'camera': self.showbase.ed_camera,
             'rootNp': self.gizmo_mgr_root_np,
@@ -127,7 +124,7 @@ class MyApp(wxPanda.App):
 
     def set_active_gizmo(self, gizmo):
         self.level_editor.active_gizmo = gizmo
-        if len(self.selection.get_selections()) > 0:
+        if len(self.selection.selected_nps) > 0:
             self.gizmo_mgr.SetActiveGizmo(gizmo)
             self.update_gizmo()
 
@@ -138,7 +135,7 @@ class MyApp(wxPanda.App):
         self.gizmo_mgr.ToggleLocal()
 
     def update_gizmo(self):
-        nps = self.selection.get_selections()
+        nps = self.selection.selected_nps
         self.gizmo_mgr.AttachNodePaths(nps)
         self.gizmo_mgr.RefreshActiveGizmo()
 
@@ -152,9 +149,13 @@ class MyApp(wxPanda.App):
             else:
                 self.accept(key, func, [args])
 
+        self.showbase.ed_camera.disabled = False
+
     def unbind_key_events(self):
         for key in self.key_event_map.keys():
             self.ignore(key)
+
+        self.showbase.ed_camera.disabled = True
 
     def on_mouse1_down(self, shift=False):
         self.mouse_1_down = True
@@ -168,7 +169,6 @@ class MyApp(wxPanda.App):
     def on_mouse1_up(self):
         self.mouse_1_down = False
 
-        nps = []
         if self.selection.marquee.IsRunning():
             nps = self.selection.stop_drag_select()
             # start transform
@@ -196,29 +196,8 @@ class MyApp(wxPanda.App):
     def on_mouse2_up(self):
         pass
 
-    def on_mouse_hover(self):
-        self.wx_main.ed_viewport_panel.OnMouseHover(0, 0)
-
     def update(self, task):
         """update is called every frame"""
-        if self.showbase.ed_mouse_watcher_node.hasMouse():
-            if self.mouse_in_viewport is False:
-                self.mouse_in_viewport = True
-                self.wx_main.ed_viewport_panel.OnMouseEnter()
-
-            self.on_mouse_hover()
-
-        elif self.mouse_in_viewport is True:
-            self.wx_main.ed_viewport_panel.OnMouseLeave()
-
-            self.mouse_in_viewport = False
-            self.mouse_1_down = False
-            self.mouse_2_down = False
-
-        return task.cont
-
-    def late_update(self, task):
-        """late_update is called every after update"""
         if self.gizmo_mgr.IsDragging():
             obs.trigger("XFormTask")
         return task.cont

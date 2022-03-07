@@ -3,10 +3,10 @@ import shutil
 import wx
 import wx.lib.agw.customtreectrl as customtree
 
+from wx.lib.scrolledpanel import ScrolledPanel
 from editor.colourPalette import ColourPalette as Colours
 from editor.constants import object_manager, obs, SCENE_GEO, FILE_EXTENSIONS_ICONS_PATH
 from editor.utils.exceptionHandler import try_execute
-
 
 # icons / thumbnails names
 FOLDER_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "folder16.png"
@@ -25,7 +25,9 @@ VIDEO_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_video.png"
 COLLAPSE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
 EXPAND_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
 
-# supported extensions
+GENERIC_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
+
+# icons for some common file extensions all other will have a generic file icon
 EXTENSIONS = {"folder": FOLDER_ICON,
 
               "egg": EGG_FILE_ICON,
@@ -41,10 +43,9 @@ EXTENSIONS = {"folder": FOLDER_ICON,
 
               "mp4": VIDEO_FILE_ICON,
               "mp3": IMAGE_FILE_ICON,
+
+              "generic": GENERIC_FILE_ICON,
               }
-
-# extension to icon map
-
 
 # event ids for different event types
 EVT_NEW_DIR = wx.NewId()
@@ -57,7 +58,7 @@ EVT_CREATE_PY_MOD = wx.NewId()
 EVT_CREATE_P3D_USER_MOD = wx.NewId()
 EVT_CREATE_ED_TOOL = wx.NewId()
 
-EVT_LOAD_MODEL = wx.NewId()
+EVT_LOAD_RESOURCE = wx.NewId()
 
 EVT_APPEND_LIBRARY = wx.NewId()
 EVT_IMPORT_ASSETS = wx.NewId()
@@ -74,6 +75,22 @@ def build_menu(menu, items):
         menu_item = wx.MenuItem(menu, _items[0], _items[1])
         # menu_item.SetBitmap(wx.Bitmap('exit.png'))
         menu.Append(menu_item)
+
+
+class _ResourceBrowser(ScrolledPanel):
+    def __init__(self, *args, **kwargs):
+        ScrolledPanel.__init__(self, *args, **kwargs)
+
+        self.wx_main = args[0]
+
+        self.resource_browser = ResourceBrowser(self, self.wx_main)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.resource_browser, 1, wx.EXPAND)
+
+        self.SetSizer(sizer)
+        self.Layout()
+        self.SetupScrolling()
 
 
 class ResourceBrowser(customtree.CustomTreeCtrl):
@@ -112,6 +129,10 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
             self.image_list.Add(icon_bitmap)  # and append it to image list
             i = i + 1
 
+        # and one finally for generic file icon
+        icon_bitmap = wx.Bitmap(GENERIC_FILE_ICON)
+        self.image_list.Add(icon_bitmap)
+
         self.SetImageList(self.image_list)
         # ---------------------------------------------------------------------------- #
 
@@ -131,11 +152,15 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         # ---------------------------------------------------------------------------- #
         # file menus associates a file extension with, or an extension with a function,
         # which creates its menus, to be used in popup menus
-        self.file_menus = {"directory": [self.create_directory_menu_items, self.create_generic_menu_items],
-                           "py": [self.create_generic_menu_items],
-                           "generic": [self.create_generic_menu_items],
-                           "pz": [self.create_generic_menu_items],
-                           "egg": [self.create_generic_menu_items]}
+        self.file_menus = {
+            "directory": [self.create_directory_menu_items, self.create_generic_menu_items],
+            "py": [self.create_generic_menu_items],
+            "generic": [self.create_generic_menu_items],
+            "pz": [self.create_3d_model_menu_items, self.create_generic_menu_items],
+            "egg": [self.create_3d_model_menu_items, self.create_generic_menu_items],
+            "fbx": [self.create_3d_model_menu_items, self.create_generic_menu_items],
+            "obj": [self.create_3d_model_menu_items, self.create_generic_menu_items]
+        }
 
         self.event_map = {
             EVT_NEW_DIR: (self.on_file_op, "add_folder"),
@@ -147,6 +172,8 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
             EVT_CREATE_PY_MOD: (self.create_asset, "py_mod"),
             EVT_CREATE_P3D_USER_MOD: (self.create_asset, "p3d_user_mod"),
             EVT_CREATE_ED_TOOL: (self.create_asset, "p3d_ed_tool"),
+
+            EVT_LOAD_RESOURCE: (self.load_resource, "3d_model"),
 
             EVT_APPEND_LIBRARY: (self.append_library, None),
             EVT_IMPORT_ASSETS: (self.import_assets, None),
@@ -165,11 +192,10 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         self.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.create_popup_menu)
         self.Bind(wx.EVT_MENU, self.on_select_context)
 
-    # ****************** #
     files_and_extensions = {}  # temporarily saves all files with same extensions when organizing tree
     tmp_selections = []  #
 
-    # **************** All methods bounded to different tree events **************** #
+    # ----------------- All methods bounded to different tree events ----------------- #
     def on_item_expanded(self, event):
         event.Skip()
 
@@ -251,7 +277,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
             if is_item_dir:
                 item_ext = "directory"
             elif item_ext not in self.file_menus.keys():
-                return
+                item_ext = "generic"
 
         popup_menu = wx.Menu()
 
@@ -271,92 +297,87 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
 
         event.Skip()
 
-    # **************** All methods for building tree items **************** #
-    def build_tree(self, path, root_name: str = "", initial=True):
-        """builds tree items from given path, provided a root node exists"""
+    # ---------------------- All methods for building tree items ---------------------- #
+    def create_or_rebuild_tree(self, path, rebuild_event: bool):
+        """rebuild a tree from scratch from argument path or rebuild tree from libraries if rebuild_event"""
+        if not rebuild_event:
+            print("ResourceBrowser --> Building resources")
 
-        assert os.path.exists(path), "error: path does not exist"
-        assert os.path.isdir(path), "error: path is not a directory"
+            assert os.path.exists(path), "error: path does not exist"
+            assert os.path.isdir(path), "error: path is not a directory"
 
-        if initial:  # when first time a project is set up
             self.libraries.clear()
-
             self.resources.clear()
-            for ext in EXTENSIONS.keys():
-                self.resources[ext] = []
-
             self.name_to_item.clear()
             self.DeleteChildren(self.GetRootItem())
+
             self.root_path = path
+
+            # create a key for each know file type
+            for ext in EXTENSIONS.keys():
+                self.resources[ext] = []
 
             # setup a default project library
             parent_item = self.AppendItem(self.root_node, "Project", data=path, image=self.image_index["folder"])
             self.name_to_item["Project"] = parent_item
             self.libraries["Project"] = path
 
+            self.UnselectAll()
+            self.create_tree_from_dir(dir_path=path, parent=parent_item)
+            self.ExpandAll()
         else:
-            # TO:DO make sure that root_name does not already exist via self.name_to_item
-            # before appending a new library
-            parent_item = self.AppendItem(self.root_node, root_name, data=path, image=self.image_index["folder"])
-            self.libraries[root_name] = path
+            print("ResourceBrowser --> Rebuilding resources")
 
-        self.UnselectAll()
+            selection = self.GetSelection()
+            if selection:
+                selection = self.GetItemText(selection)
+            self.UnselectAll()
 
-        self.create_tree_from_dir(dir_path=path, parent=parent_item)
+            self.DeleteChildren(self.GetRootItem())  # delete all children
+            self.resources.clear()  # unload all resources
 
-        self.ExpandAll()
+            # save the root parent item before clearing name_to_items
+            parent = self.name_to_item["Project"]
+            self.name_to_item.clear()
+            self.name_to_item["Project"] = parent
+            del parent
 
-    def rebuild_tree(self):
-        """rebuild tree attempts to rebuild entire tree from current tree.libraries """
-        print("rebuilding resources")
+            # create a key for each know file type
+            for ext in EXTENSIONS.keys():
+                self.resources[ext] = []
 
-        # ------------- first clean up everything properly ------------- #
-        # save the current selection to reselect it once the tree is reloaded
-        selection = self.GetSelection()
-        if selection:
-            selection = self.GetItemText(selection)
-        self.UnselectAll()
+            # recreate all the libraries
+            for key in self.libraries.keys():
+                path = self.libraries[key]
+                parent_item = self.AppendItem(self.root_node, key, data=path, image=self.image_index["folder"])
+                self.create_tree_from_dir(path, parent_item)
 
-        # delete all children
-        self.DeleteChildren(self.GetRootItem())
+            self.ExpandAll()
+            self.Refresh()
 
-        # unload all resources
-        self.resources.clear()
-
-        # ------------- now start process of rebuilding everything ------------- #
-        parent = self.name_to_item["Project"]
-        self.name_to_item.clear()
-        self.name_to_item["Project"] = parent
-        del parent
-
-        # create a new key for each resource type
-        for ext in EXTENSIONS.keys():
-            self.resources[ext] = []
-
-        for key in self.libraries.keys():
-            path = self.libraries[key]
-            parent_item = self.AppendItem(self.root_node, key, data=path, image=self.image_index["folder"])
-            self.create_tree_from_dir(path, parent_item)
-
-        self.ExpandAll()
-        self.Refresh()
-
-        # self.update_resource_handler()
-
-        # select tree item that was previously selected.
-        if selection in self.name_to_item.keys():
-            self.SelectItem(self.name_to_item[selection])
+            # select tree item that was previously selected.
+            if selection in self.name_to_item.keys():
+                self.SelectItem(self.name_to_item[selection])
 
     def create_tree_from_dir(self, dir_path=None, parent=None):
         def append_item(_file_path, _file_name):
             extension = _file_path.split(".")[-1]
+
             if extension in EXTENSIONS:
                 icon = self.image_index[extension]
-                __item = self.AppendItem(parent, file, data=file_path, image=icon)
+            else:
+                icon = self.image_index["generic"]
 
-                # self.SetItemTextColour(item, wx.Colour(255, 255, 190, 255))
-                self.name_to_item[file] = __item
-                self.resources[extension].append(_file_path)
+            # make sure extension exists otherwise add a new key
+            if extension in self.resources.keys():
+                pass
+            else:
+                self.resources[extension] = []
+
+            __item = self.AppendItem(parent, file, data=file_path, image=icon)
+            self.name_to_item[file] = __item
+            self.resources[extension].append(_file_path)
+            # self.SetItemTextColour(item, wx.Colour(255, 255, 190, 255))
 
         dir_files = os.listdir(dir_path)
 
@@ -427,14 +448,17 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         library_items = [(EVT_SHOW_IN_EXPLORER, "&Show In Explorer", None)]
         build_menu(parent_menu, library_items)
 
+    def create_3d_model_menu_items(self, parent_menu):
+        menu_items = [(EVT_LOAD_RESOURCE, "&Load Model", None)]
+        build_menu(parent_menu, menu_items)
+
     def create_generic_menu_items(self, parent_menu):
-        # others  menu
-        misc_items = [(EVT_RENAME_ITEM, "&Rename", None),
+        menu_items = [(EVT_RENAME_ITEM, "&Rename", None),
                       (EVT_REMOVE_ITEM, "&Remove", None),
                       (EVT_DUPLICATE_ITEM, "&Duplicate", None)]
-        build_menu(parent_menu, misc_items)
+        build_menu(parent_menu, menu_items)
 
-    # **************** file explorer operations **************** #
+    # ----------------- file explorer operations ----------------- #
     def on_file_op(self, op, *args, **kwargs):
         def can_perform_operation():
             if self.GetSelection() == self.GetRootItem():
@@ -456,18 +480,6 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
 
         elif op == "remove_item" and can_perform_operation():
             self.remove_item()
-
-        elif op == "LoadModel":
-            # if it is an absolute path
-            absolute = self.GetItemParent(self.GetSelection()) == self.GetRootItem()
-            if absolute:
-                path = self.GetItemText(self.GetSelection())
-                obs.trigger("LoadModel", path, SCENE_GEO)
-            else:
-                proj_path = self.GetItemPyData(self.GetRootItem())
-                item_path = self.GetItemPyData(self.GetSelection())
-                item_path = item_path[len(proj_path) + 1:]
-                obs.trigger("LoadModel", item_path, SCENE_GEO)
 
     @staticmethod
     def do_drag_drop(src_file: str, target_dir: str):
@@ -513,7 +525,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
 
         wx_main = object_manager.get("WxMain")
         dm = wx_main.dialogue_manager
-        dm.create_dialog("TextEntryDialog", "New Directory", descriptor_text="Enter name", ok_call=on_ok)
+        dm.create_dialog("TextEntryDialog", "New Directory", dm, descriptor_text="Enter name", ok_call=on_ok)
 
     def rename_item(self):
         def on_ok(text):
@@ -547,7 +559,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
 
         dm = self.wx_main.dialogue_manager
         dm.create_dialog("TextEntryDialog",
-                         "Rename Item", descriptor_text="Rename Selection", ok_call=on_ok,
+                         "Rename Item", dm, descriptor_text="Rename Selection", ok_call=on_ok,
                          starting_text=self.GetItemText(self.GetSelection()))
 
     def duplicate(self, *args):
@@ -630,7 +642,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
                         self.Delete(item)
 
         dm = self.wx_main.dialogue_manager
-        dm.create_dialog("YesNoDialog", "Delete Item", descriptor_text="Confirm remove selection(s) ?",
+        dm.create_dialog("YesNoDialog", "Delete Item", dm, descriptor_text="Confirm remove selection(s) ?",
                          ok_call=on_ok)
 
     def create_asset(self, _type):
@@ -649,7 +661,12 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
 
         wx_main = object_manager.get("WxMain")
         dm = wx_main.dialogue_manager
-        dm.create_dialog("TextEntryDialog", "CreateNewAsset", descriptor_text="New Asset Name", ok_call=on_ok)
+        dm.create_dialog("TextEntryDialog", "CreateNewAsset", dm, descriptor_text="New Asset Name", ok_call=on_ok)
+
+    def load_resource(self, _resource_type):
+        obs.trigger("WxEvent", "load_resource",
+                    resource_type=_resource_type,
+                    resource_path=self.GetItemPyData(self.GetSelection()))
 
     def import_assets(self, *args):
         def create_wild_card(wild_card=""):
@@ -665,7 +682,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         wd = create_wild_card(wd)
 
         style = wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE
-        with wx.FileDialog(self, "Import Assets", wildcard=wd, style=style) as fileDialog:
+        with wx.FileDialog(self, "Import Assets", style=style) as fileDialog:
 
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return  # the user changed their mind
@@ -700,6 +717,3 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         if self.name_to_item.__contains__(item_name):
             return self.name_to_item[item_name]
         return None
-
-    def get_libraries(self):
-        return self.libraries

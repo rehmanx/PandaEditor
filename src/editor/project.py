@@ -1,7 +1,6 @@
 import sys
-import os
-from editor.directoryWatcher import DirWatcher
-from editor.constants import object_manager
+from panda3d.core import get_model_path, Filename
+from editor.utils import DirWatcher
 
 
 class Project(object):
@@ -9,7 +8,6 @@ class Project(object):
 
         self.level_editor = level_editor
         self.dir_watcher = DirWatcher()
-        self.project_browser = object_manager.get("ProjectBrowser")
 
         self.project_name = ""
         self.project_path = ""
@@ -32,6 +30,12 @@ class Project(object):
         # key[Project] in self.libraries is default project dir,
         # it is set when a project is created, and cannot be removed
         self.libraries["Project"] = path
+
+        # clear panda3d's current path and set new according to new project path
+        get_model_path().clear()
+        # p3d_core.get_model_path().prependDirectory(".")
+        panda_path = Filename.fromOsSpecific(path)
+        get_model_path().prependDirectory(panda_path)
 
         # start dir watcher
         self.dir_watcher.schedule(path, append=False)

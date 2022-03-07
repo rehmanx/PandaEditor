@@ -1,7 +1,7 @@
 import os
 import wx
 from thirdparty.event.observable import Observable
-from editor.utils.exceptionHandler import try_execute
+from editor.utils.exceptionHandler import try_execute, try_execute_1
 from panda3d.core import BitMask32
 
 EDITOR_STATE = 0  # editor mode
@@ -71,8 +71,9 @@ class DirectoryEventHandler:
         proj_browser = object_manager.get("ProjectBrowser")
         le = object_manager.get("LevelEditor")
 
-        proj_browser.rebuild_tree()  # rebuild project files/tree
-        le.load_all_modules(proj_browser.resources["py"])  # reload all user mods and tools
+        proj_browser.create_or_rebuild_tree("", rebuild_event=True)  # rebuild project files/tree
+        # proj_browser.rebuild_tree()
+        le.load_all_mods(proj_browser.resources["py"])  # reload all user mods and tools
 
 
 class LevelEditorEventHandler:
@@ -162,14 +163,9 @@ class LevelEditorEventHandler:
         wx_main = object_manager.get("WxMain")
         dm = wx_main.dialogue_manager
         dm.create_dialog("YesNoDialog", "Delete Item",
+                         dm,
                          descriptor_text="Are you sure you want to delete this selection ?",
                          ok_call=on_ok)
-
-    @staticmethod
-    @obs.on("LoadModel")
-    def load_model(name, geo, *args):
-        model = object_manager.get("LevelEditor").load_model(name, geo)
-        return model
 
     @staticmethod
     @obs.on("NodepathSelected")
@@ -221,7 +217,7 @@ class ProjectEventHandler:
             wx_main = object_manager.get("WxMain")
 
             # get the current editor state
-            ed_state = le.get_editor_state()  # 0 = editor, 1 = game_state
+            ed_state = le.ed_state  # 0 = editor, 1 = game_state
 
             if len(args) > 0:
                 le.switch_state(args[0])
@@ -232,13 +228,10 @@ class ProjectEventHandler:
             elif ed_state == 1:
                 le.switch_state(0)
 
-            # get updated state
-            ed_state = le.get_editor_state()
-
             # change graphics
-            if ed_state == 1:
+            if le.ed_state == 1:
                 wx_main.ply_btn.SetBitmap(wx_main.stop_icon)
-            elif ed_state == 0:
+            elif le.ed_state == 0:
                 wx_main.ply_btn.SetBitmap(wx_main.play_icon)
 
             wx_main.aui_manager.Update()
@@ -256,12 +249,13 @@ class ProjectEventHandler:
         file_browser = object_manager.get("ProjectBrowser")
 
         if le.ed_state is GAME_STATE:
-            print("Exit game mode to create a new project..!")
+            print("ProjectEventHandler --> Exit game mode to create a new project.")
             return
 
         def on_ok(proj_name, proj_path):
             if not proj_name.isalnum():  # validate project name
-                print("project name should only consists of alphabets and digits..!")
+                print("ProjectEventHandler --> project name should not be null and can"
+                      " only consists of alphabets and digits.")
                 return
 
             # validate project path and set project
@@ -269,7 +263,7 @@ class ProjectEventHandler:
             if os.path.exists(proj_path) and os.path.isdir(proj_path):
                 le.create_new_project(proj_path)
 
-                file_browser.build_tree(proj_path)
+                file_browser.create_or_rebuild_tree(proj_path, rebuild_event=False)
                 file_browser.Refresh()
 
                 DirectoryEventHandler.on_directory_event()
@@ -278,14 +272,14 @@ class ProjectEventHandler:
 
                 dialog.Close()  # finally, close project dialog
             else:
-                print("unable to create new project, probably path is invalid...!")
+                print("ProjectEventHandler --> unable to create a new project, probably path is invalid.")
 
         def on_cancel(*_args):
             pass
 
         wx_main = object_manager.get("WxMain")
         dm = wx_main.dialogue_manager
-        dialog = dm.create_dialog("ProjectDialog", "PandaEditor", ok_call=on_ok, cancel_call=on_cancel)
+        dialog = dm.create_dialog("ProjectDialog", "PandaEditor", dm, ok_call=on_ok, cancel_call=on_cancel)
         return
 
     @staticmethod
@@ -346,7 +340,8 @@ class ProjectEventHandler:
     @staticmethod
     @obs.on("CreateAsset")
     def create_asset(_type, path):
-        def create_file(file_name, base_cls=None, start_func_name="on_start"):
+        def create_file(file_name, base_cls=None, py_mod=False, ed_plugin=False):
+
             def indent(_file, spaces):
                 # add indentation by adding empty spaces
                 for i in range(spaces):
@@ -364,9 +359,9 @@ class ProjectEventHandler:
                 if base_cls:
                     base_mod = base_cls[0].lower() + base_cls[1:]  # file name as on disk e.g. pModBase
                     base_cls = base_cls[0].upper() + base_cls[1:]  # class name as PModBase
-                    file.write("from editor.p3d.{0} import {1}\n\n\n".format(base_mod, base_cls))
+                    file.write("from editor.core.{0} import {1}\n\n\n".format(base_mod, base_cls))
                 else:
-                    file.write("\n")
+                    file.write("\n\n")
                     base_cls = "object"
 
                 # class header and init method
@@ -375,11 +370,27 @@ class ProjectEventHandler:
                 indent(file, 4)
                 file.write("def __init__(self, *args, **kwargs):\n")
 
-                indent(file, 8)
                 if base_cls != "object":
-                    file.write(base_cls + ".__init__(self, *args, **kwargs)\n\n")
+
+                    indent(file, 8)
+
+                    if ed_plugin:
+                        file.write(base_cls + ".__init__(self, *args, **kwargs)\n")
+                        indent(file, 8)
+                        file.write("self.is_ed_plugin(True)\n\n")
+                    else:
+                        file.write(base_cls + ".__init__(self, *args, **kwargs)\n\n")
+
+                    indent(file, 8)
+                    file.write("# __init__ should contain anything except for variable declaration...!\n\n")
+
                 else:
                     file.write("pass\n\n")
+
+                if py_mod:
+                    return
+
+                start_func_name = "on_start"
 
                 # write on start method
                 indent(file, 4)
@@ -400,13 +411,13 @@ class ProjectEventHandler:
         func = create_file
 
         if _type == "py_mod":
-            try_execute(func, path, start_func_name="on_enable")
+            try_execute(func, path, py_mod=True)
 
         elif _type == "p3d_user_mod":
-            try_execute(func, path, base_cls="pModBase", start_func_name="on_start")
+            try_execute(func, path, base_cls="pModBase")
 
         elif _type == "p3d_ed_tool":
-            try_execute(func, path, base_cls="pToolBase", start_func_name="on_enable")
+            try_execute(func, path, base_cls="pModBase", ed_plugin=True)
 
     @staticmethod
     @obs.on("ToolExecutionFailed")
@@ -414,13 +425,41 @@ class ProjectEventHandler:
         print("plugin {} execution failed", tool_name)
 
 
+class UserModuleEvent:
+    """Handle all events coming from UserModules"""
+
+    @staticmethod
+    @obs.on("UserModuleEvent")
+    def user_module_event(evt):
+        if evt == "PluginExecutionFailed":
+            UserModuleEvent.plugin_execution_failed()
+
+    @staticmethod
+    def plugin_execution_failed(*args):
+        print("plugin executing failed...!")
+        le = object_manager.get("LevelEditor")
+        le.unregister_editor_plugins()
+
+
 class WxEventHandler:
-    """handler event emitted by different wx widgets"""
+    """Handles events coming from different wx widgets"""
 
     @staticmethod
     @obs.on("WxEvent")
-    def on_wx_event(*args):
-        pass
+    def on_wx_event(evt_type, **kwargs):
+        if evt_type == "load_resource":
+            WxEventHandler.load_resource(**kwargs)
+
+    @staticmethod
+    def load_resource(**kwargs):
+        le = object_manager.get("LevelEditor")
+
+        resource_type = kwargs.pop("resource_type", None)
+        resource_path = kwargs.pop("resource_path", "")
+
+        if resource_type is "3d_model":
+            xx = resource_path[len(le.project.project_path)+1:]
+            le.load_model(xx)
 
     @staticmethod
     @obs.on("SelectTreeItem")
@@ -478,7 +517,7 @@ class WxEventHandler:
 
         # get a name for this layout from user
         dm = wx_main.dialogue_manager
-        dm.create_dialog("TextEntryDialog", "NewEditorLayout",
+        dm.create_dialog("TextEntryDialog", "NewEditorLayout", dm,
                          descriptor_text="Enter new layout name", ok_call=on_ok)
 
     @staticmethod

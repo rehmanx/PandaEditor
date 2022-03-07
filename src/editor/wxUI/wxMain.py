@@ -4,10 +4,12 @@ import wx.lib.agw.aui as aui
 from wx.lib.scrolledpanel import ScrolledPanel
 from thirdparty.wxCustom.auiManager import AuiManager
 from editor.wxUI.wxMenuBar import WxMenuBar
-from editor.wxUI.resourceBrowser import ResourceBrowser
+
+from editor.wxUI.resourceBrowser import ResourceBrowser, _ResourceBrowser
 from editor.wxUI.inspectorPanel import InspectorPanel
-from editor.wxUI.customInspectorPanel import CustomInspectorPanel
 from editor.wxUI.logPanel import LogPanel
+from editor.wxUI.auxiliaryPanel import AuxiliaryPanel
+
 from editor.wxUI.wxDialogs import DialogManager
 from editor.p3d import wxPanda
 from editor.constants import object_manager, obs, ICONS_PATH
@@ -88,15 +90,14 @@ class WxFrame(wx.Frame):
     def __init__(self, *args, **kwargs):
         wx.Frame.__init__(self, *args, **kwargs)
 
-        self.load_resources()
-
         self.panda_app = wx.GetApp()
+        object_manager.add_object("WxMain", self)
+
+        self.load_resources()
 
         icon_file = ICON_FILE
         icon = wx.Icon(icon_file, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
-
-        object_manager.add_object("WxMain", self)
 
         # set menu bar
         self.menu_bar = WxMenuBar(self)
@@ -106,47 +107,29 @@ class WxFrame(wx.Frame):
         self.status_bar = self.CreateStatusBar()
         self.status_bar.SetStatusText("Welcome to PandaEditor")
 
-        # setup dialogue manager
-        self.dialogue_manager = DialogManager()
-
         # setup aui manager
         self.aui_manager = AuiManager(self)
 
+        # wx aui toolbars
         self.tb_panes = []  # names of all aui toolbars
-
-        # setup toolbars
         self.build_filemenu_tb()
         self.build_proj_menus_tb()
         self.build_scene_ctrls_tb()
         self.build_play_ctrls_tb()
 
-        # setup different panda3d editor tabs
-        # editor_viewport
-        self.ed_viewport_panel = wxPanda.Viewport(self, style=wx.BORDER_SUNKEN)
+        # setup dialogue manager
+        self.dialogue_manager = DialogManager()
 
-        # game_viewport
-        # self.game_viewport_panel = wxPanda.Viewport(self, style=wx.BORDER_SUNKEN)
-
-        # inspector panel
-        self.inspector_panel = InspectorPanel(self)
+        # create various wx-panels
+        self.ed_viewport_panel = wxPanda.Viewport(self, style=wx.BORDER_SUNKEN)  # editor_viewport
+        self.inspector_panel = InspectorPanel(self)  # inspector panel
         self.inspector_panel.set_layout_auto(False)
-
-        # log panel
-        self.log_panel = LogPanel(self)
-
-        # project browser panel----------------------
-        self.proj_browser_panel = ScrolledPanel(self)
-        self.proj_browser = ResourceBrowser(self.proj_browser_panel, self)
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.proj_browser, 1, wx.EXPAND)
-        self.proj_browser_panel.SetSizer(sizer)
-
-        self.proj_browser_panel.Layout()
-        self.proj_browser_panel.SetupScrolling()
-        # --------------------------------------------------
+        self.log_panel = LogPanel(self)  # log panel
+        self.resource_browser = _ResourceBrowser(self)
+        self.auxiliary_panel = AuxiliaryPanel(self)
 
         self.panel_defs = {
+            # dir=4;layer=0;row=0;pos=0
             "EditorViewport": (self.ed_viewport_panel,
                                True,
                                aui.AuiPaneInfo().
@@ -154,8 +137,9 @@ class WxFrame(wx.Frame):
                                Caption("EditorViewport").
                                CloseButton(False).
                                MaximizeButton(True).
-                               Left()),
+                               Direction(4).Layer(0).Row(0).Position(0)),
 
+            # dir=4;layer=0;row=2;pos=0
             "ObjectInspectorTab": (self.inspector_panel,
                                    True,
                                    aui.AuiPaneInfo().
@@ -163,17 +147,19 @@ class WxFrame(wx.Frame):
                                    Caption("InspectorTab").
                                    CloseButton(True).
                                    MaximizeButton(True).
-                                   Top()),
+                                   Direction(4).Layer(0).Row(2).Position(0)),
 
-            "ResourceBrowser": (self.proj_browser_panel,
+            # dir=3;layer=1;row=0;pos=0
+            "ResourceBrowser": (self.resource_browser,
                                 True,
                                 aui.AuiPaneInfo().
                                 Name("ResourceBrowser").
                                 Caption("ResourceBrowser").
                                 CloseButton(True).
                                 MaximizeButton(True).
-                                Top()),
+                                Direction(3).Layer(1).Row(0).Position(1)),
 
+            # dir=3;layer=1;row=0;pos=1
             "LogTab": (self.log_panel,
                        True,
                        aui.AuiPaneInfo().
@@ -181,30 +167,64 @@ class WxFrame(wx.Frame):
                        Caption("LogTab").
                        CloseButton(True).
                        MaximizeButton(True).
-                       Top()),
+                       Direction(3).Layer(1).Row(0).Position(0)),
+
+            "AuxiliaryPanel": (self.auxiliary_panel,
+                               True,
+                               aui.AuiPaneInfo().Name("AuxiliaryPanel").
+                               Caption("AuxiliaryPanel").
+                               CloseButton(True).
+                               MaximizeButton(True))
         }
-
-        self.default_panel_defs = self.panel_defs.copy()  # default panels
-
-        # tell aui_manager to start managing these panels,
-        for pane_def in self.panel_defs.values():
-            self.aui_manager.AddPane(pane_def[0], pane_def[2])
-
-        # load default layout
-        self.aui_manager.LoadPerspective(DEFAULT_AUI_LAYOUT)
-        self.aui_manager.save_layout("DefaultLayout", self.panel_defs.keys(), DEFAULT_AUI_LAYOUT)
-
-        self.aui_manager.Update()
 
         self.SetMinSize((800, 600))
         self.Maximize(True)
+        self.Layout()
+        self.Center()
+
+        self.create_default_layout()
+        self.aui_manager.Update()
 
         self.Bind(wx.EVT_SIZE, self.on_event_size)
         self.Bind(wx.EVT_LEFT_DOWN, self.on_evt_left_down)
         self.Bind(wx.EVT_CLOSE, self.on_event_close)
 
-        self.Layout()
-        self.Center()
+        # some cleanup
+        for pane_def in self.panel_defs.values():
+            pane_def[2].MinSize(wx.Size(0, 0))
+
+    def create_default_layout(self):
+        size = self.GetSize()
+
+        # create a default layout
+        for pane_def in self.panel_defs.values():
+
+            if pane_def[2].name == "AuxiliaryPanel":
+                self.add_panel_def(name="AuxiliaryPanel", panel_def=pane_def[2])
+                continue
+
+            self.aui_manager.AddPane(pane_def[0], pane_def[2])
+
+            if pane_def[2].name == "EditorViewport":
+                proportion_x = (70 / 100) * size.x
+                proportion_y = (60 / 100) * size.y
+                pane_def[2].MinSize1(wx.Size(proportion_x, proportion_y))
+
+            if pane_def[2].name == "ObjectInspectorTab":
+                proportion_x = (30 / 100) * size.x
+                proportion_y = (60 / 100) * size.y
+                pane_def[2].MinSize1(wx.Size(proportion_x, proportion_y))
+                pane_def[2].dock_proportion = 100
+
+            if pane_def[2].name == "ResourceBrowser":
+                proportion_y = (30 / 100) * size.y
+                pane_def[2].MinSize1(wx.Size(1, proportion_y))
+                pane_def[2].dock_proportion = 25
+
+            if pane_def[2].name == "LogTab":
+                proportion_y = (30 / 100) * size.y
+                pane_def[2].MinSize1(wx.Size(1, proportion_y))
+                pane_def[2].dock_proportion = 75
 
     def load_resources(self):
         self.new_icon = wx.Bitmap(NEW_ICON)
@@ -318,45 +338,23 @@ class WxFrame(wx.Frame):
         self.Bind(wx.EVT_TOOL, self.on_event, self.sound_toggle_btn)
         self.Bind(wx.EVT_TOOL, self.on_event, self.lights_toggle_btn)
 
-    def add_panel_def(self, name):
+    def add_panel_def(self, name, panel_def):
         if name not in self.panel_defs.keys():
-            # create a CustomInspectorPanel
-            my_panel = CustomInspectorPanel(self)
-
-            # also create and save a panel definition for it
-            paneldef = (my_panel,
-                        True,
-                        aui.AuiPaneInfo().
-                        Name(name).
-                        Caption(name).
-                        CloseButton(True).
-                        MaximizeButton(True).
-                        Top()),
-
-            self.panel_defs[name] = paneldef[0]
+            self.panel_defs[name] = panel_def
 
     def add_tab(self, tab):
         if tab in self.panel_defs.keys():
             paneldef = self.panel_defs[tab]
         else:
-            print("unable to add tab {0}, tab is not defined in panel_definitions".format(tab))
+            print("WxMain --> Unable to add tab {0}, panel is not defined in panel_definitions.".format(tab))
             return
 
         self.aui_manager.AddPane(paneldef[0], paneldef[2])
         self.aui_manager.ShowPane(paneldef[0], True)
 
-        if tab not in ["EditorViewport", "GameViewport", "ResourceBrowser", "LogTab", ]:
-            paneldef[0].enable()
-
         self.aui_manager.Update()
 
-    def on_pane_close(self, pane_name):
-        if pane_name in self.panel_defs.keys():
-            paneldef = self.panel_defs[pane_name]
-        else:
-            print("unable to remove tab {0}, tab is not defined in pane_defs".format(pane_name))
-            return
-
+    def on_pane_close(self, pane):
         self.aui_manager.Update()
 
     def delete_tab(self, tab):
@@ -384,20 +382,8 @@ class WxFrame(wx.Frame):
     def set_status_bar_text(self, txt: str):
         self.status_bar.SetStatusText(txt)
 
-    @staticmethod
-    def get_default_layout():
-        return DEFAULT_AUI_LAYOUT
-
-    def get_panel_defs(self):
-        return self.panel_defs
-
     def get_save_data(self):
         pass
-
-    def get_user_tabs(self):
-        keys = list(self.panel_defs.keys())
-        user_tabs = keys[len(self.default_panel_defs):]
-        return user_tabs
 
     def on_event(self, evt):
         if evt.GetId() in PROJ_EVENTS:
@@ -406,10 +392,11 @@ class WxFrame(wx.Frame):
         evt.Skip()
 
     def on_evt_left_down(self, evt):
-        # print("left down")
+        print("wx event left down")
         evt.Skip()
 
     def on_event_size(self, event=None):
+        # tell aui_manager to start managing these panels
         size = self.ed_viewport_panel.GetSize()
         obs.trigger("EventWxSize", size)
         if event is not None:

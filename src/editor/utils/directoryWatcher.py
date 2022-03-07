@@ -1,6 +1,6 @@
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from editor.constants import obs
+import editor.constants as constants
 from direct.showbase.ShowBase import taskMgr
 
 
@@ -11,7 +11,7 @@ class DirEventProcessor(FileSystemEventHandler):
 
     def on_any_event(self, event):
         if self.dir_event_task is None:
-            taskMgr.add(self.dir_evt_timer, "DirEventTimer")
+            taskMgr.add(self.dir_evt_timer, "DirEventTimer", sort=0, priority=None)
         self.received_events.append(event)
 
     def dir_evt_timer(self, task):
@@ -35,7 +35,7 @@ class DirEventProcessor(FileSystemEventHandler):
                 interested_events.append(file_name)
 
         if len(interested_events) > 0:
-            obs.trigger("DirectoryEvent", interested_events)
+            constants.obs.trigger("DirectoryEvent", interested_events)
 
         self.received_events = []
 

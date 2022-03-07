@@ -1,14 +1,17 @@
-from editor import p3d
+from direct.showbase.DirectObject import DirectObject
 
 MOUSE_ALT = 0
 MOUSE_CTRL = 1
 
 
-class Mouse(p3d.SingleTask):
+class Mouse(DirectObject):
     """Class representing the mouse."""
 
-    def __init__(self, *args, **kwargs):
-        p3d.SingleTask.__init__(self, *args, **kwargs)
+    def __init__(self, mouse_watcher, win):
+        DirectObject.__init__(self)
+
+        self.mouse_watcher_node = mouse_watcher
+        self.win = win
 
         self.x = 0
         self.y = 0
@@ -38,11 +41,11 @@ class Mouse(p3d.SingleTask):
         self.accept('mouse3', self.set_button, [2, True])
         self.accept('mouse3-up', self.set_button, [2, False])
 
-    def on_update(self):
+    def update(self):
         # Get pointer from screen, calculate delta
-        if not self.mouseWatcherNode.hasMouse():
+        if not self.mouse_watcher_node.hasMouse():
             return
-        
+
         mp = self.win.getPointer(0)
         self.dx = self.x - mp.getX()
         self.dy = self.y - mp.getY()
