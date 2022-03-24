@@ -33,7 +33,7 @@
 To import resources (3d models, textures etc) **Resource browser > Import Resources**
 
 **External resources**    
-PandaEditor has support to append resources outside of your current project directory.
+PandaEditor has support to append resources outside of your current project directory.  
 Go to **Menu bar > Project > Append External Resources > select a resource directory** to append an external resource directory to your current project, PandaEditor will immediately start monitoring changes in any appended external resource directory.
 
 ### Object manipulation 
