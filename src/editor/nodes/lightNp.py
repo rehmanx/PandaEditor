@@ -4,13 +4,13 @@ from panda3d.core import LColor, PerspectiveLens
 
 
 class LightNp(BaseNp):
-    def __init__(self, np, level_editor=None, uid=None):
+    def __init__(self, np, uid=None):
         self.intensity = 1.0
 
         # this attribute is the actual pure color(Hue), as seen, unscaled by intensity
         self.ed_light_colour = LColor(255, 255, 255, 255)
 
-        BaseNp.__init__(self, np, level_editor, uid)
+        BaseNp.__init__(self, np, uid)
 
         self.set_color(self.ed_light_colour)
         self.setScale(4)
@@ -29,16 +29,16 @@ class LightNp(BaseNp):
 
     def create_save_data(self):
         super(LightNp, self).create_save_data()
-        self._save_data_infos["EdLightColour"] = [LColor, self.get_color, self.set_color]
-        self._save_data_infos["EdLightIntensity"] = [float, self.get_intensity, self.set_intensity]
+        self._save_data_info["EdLightColour"] = [self.get_color, self.set_color]
+        self._save_data_info["EdLightIntensity"] = [self.get_intensity, self.set_intensity]
 
     def set_intensity(self, val):
         self.intensity = val
 
         # update light color according to intensity
-        r = EdUtils.Utils.convert_to_range(0, 255, 0, 1, self.ed_light_colour.x)
-        g = EdUtils.Utils.convert_to_range(0, 255, 0, 1, self.ed_light_colour.y)
-        b = EdUtils.Utils.convert_to_range(0, 255, 0, 1, self.ed_light_colour.z)
+        r = EdUtils.common_maths.map_to_range(0, 255, 0, 1, self.ed_light_colour.x)
+        g = EdUtils.common_maths.map_to_range(0, 255, 0, 1, self.ed_light_colour.y)
+        b = EdUtils.common_maths.map_to_range(0, 255, 0, 1, self.ed_light_colour.z)
         color = LColor(r, g, b, 1)
         self.node().setColor(color)
 
@@ -52,9 +52,9 @@ class LightNp(BaseNp):
         self.ed_light_colour = val
 
         # convert to panda3d colour range
-        r = EdUtils.Utils.convert_to_range(0, 255, 0, 1, self.ed_light_colour.x)
-        g = EdUtils.Utils.convert_to_range(0, 255, 0, 1, self.ed_light_colour.y)
-        b = EdUtils.Utils.convert_to_range(0, 255, 0, 1, self.ed_light_colour.z)
+        r = EdUtils.common_maths.map_to_range(0, 255, 0, 1, self.ed_light_colour.x)
+        g = EdUtils.common_maths.map_to_range(0, 255, 0, 1, self.ed_light_colour.y)
+        b = EdUtils.common_maths.map_to_range(0, 255, 0, 1, self.ed_light_colour.z)
 
         color = LColor(r, g, b, 1)
         self.setColor(color)
@@ -79,8 +79,6 @@ class LightNp(BaseNp):
         pass
 
     def on_remove(self):
-        self.le.scene_lights.remove(self)
-        self.le.panda_app.showbase.render.clearLight(self)
         super().on_remove()
 
 
@@ -110,11 +108,10 @@ class EdPointLight(LightNp):
     def create_properties(self):
         super(EdPointLight, self).create_properties()
 
-        attenuations = ['constant', 'linear', 'quadratic', 'linear-quadratic']
-        attenuation = EdUtils.EdProperty.ChoiceProperty(name="attenuation",
+        attenuation = EdUtils.EdProperty.ChoiceProperty(name="Attenuation",
                                                         setter=self.set_attenuation,
                                                         getter=self.get_attenuation,
-                                                        choices=attenuations)
+                                                        choices=['constant', 'linear', 'quadratic', 'linear-quadratic'])
         self.properties.append(attenuation)
 
     def get_attenuation(self):
@@ -150,18 +147,17 @@ class EdSpotLight(LightNp):
     def create_properties(self):
         super(EdSpotLight, self).create_properties()
 
-        attenuation_types = ['constant', 'linear', 'quadratic', 'linear-quadratic']
-        attenuation_prop = EdUtils.EdProperty.ChoiceProperty(name="attenuation",
-                                                             setter=self.set_attenuation,
-                                                             getter=self.get_attenuation,
-                                                             choices=attenuation_types)
+        attenuation = EdUtils.EdProperty.ChoiceProperty(name="Attenuation",
+                                                        setter=self.set_attenuation,
+                                                        getter=self.get_attenuation,
+                                                        choices=['constant', 'linear', 'quadratic', 'linear-quadratic'])
 
         fov = EdUtils.EdProperty.FuncProperty(name="FOV(SpotAngel)",
                                               value=self.lens.getFov(),
                                               setter=self.lens.setFov,
                                               getter=self.lens.getFov)
 
-        self.properties.append(attenuation_prop)
+        self.properties.append(attenuation)
         self.properties.append(fov)
 
     def get_attenuation(self):

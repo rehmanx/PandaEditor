@@ -3,7 +3,7 @@ import wx.lib.agw.gradientbutton as gbtn
 import wx.lib.colourchooser.pycolourchooser as colorSelector
 
 from panda3d.core import Vec3, Vec2, LColor
-from editor.constants import obs, object_manager
+from editor.constants import obs, object_manager, LevelEditorEventHandler
 from editor.colourPalette import ColourPalette as Colours
 
 # IDs
@@ -49,15 +49,12 @@ class WxCustomProperty(wx.Window):
         self.parent = parent
 
         self.property = prop
-        # self.object = self.property.get_object()
         self.label = self.property.get_name()
         self.value = self.property.get_value()
 
-        self._can_set_value = True
+        self.trigger_property_modify_event = True
 
-        #
-        self.h_offset = h_offset  # a horizontal (space) to offset the control's
-        # position, it is added before a control is created
+        self.h_offset = h_offset
 
         self.font = wx.Font(10, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
         self.text_colour = wx.Colour(255, 255, 190, 255)
@@ -90,13 +87,13 @@ class WxCustomProperty(wx.Window):
     def on_control_created(self):
         pass
 
-    def set_control_value(self, val):
+    def set_control_value(self, val, **kwargs):
         pass
 
     def set_value(self, val):
         self.value = val
         property_value = self.property.set_value(val)
-        obs.trigger("PropertyModified")
+
         return property_value
 
     def get_value(self):
@@ -197,9 +194,7 @@ class IntProperty(WxCustomProperty):
             # self.text_ctrl_x.SetValue will call this method, so
             # temporarily unbind evt_text to prevent stack overflow
             self.text_ctrl.Unbind(wx.EVT_TEXT)
-
             self.text_ctrl.SetValue(str(self.old_value))
-
             self.text_ctrl.Bind(wx.EVT_TEXT, self.on_event_text)
 
         evt.Skip()
@@ -323,6 +318,7 @@ class StringProperty(WxCustomProperty):
     def on_event_text(self, evt):
         val = self.text_ctrl.GetValue()
         self.set_value(val)
+
         evt.Skip()
 
     def on_event_char(self, evt):
@@ -330,25 +326,6 @@ class StringProperty(WxCustomProperty):
 
     def on_key_down(self, evt):
         evt.Skip()
-
-        '''
-        key_code = evt.GetKeyCode()
-
-        # Allow ASCII numerics, decimals
-        if 0 <= key_code <= 9:
-            evt.Skip()
-
-        # Allow small alphabets
-        if 97 <= key_code <= 122:
-            evt.Skip()
-
-        # Allow capital alphabets
-        if 65 <= key_code <= 90:
-            evt.Skip()
-
-        else:
-            return
-        '''
 
 
 class BoolProperty(WxCustomProperty):
@@ -631,6 +608,7 @@ class Vector3Property(WxCustomProperty):
     def create_control(self):
         # label = wx.StaticText(self, label=self.label)
         super(Vector3Property, self).create_control()
+
         label_x = wx.StaticText(self, label="H")
         label_x.SetFont(self.bold_font)
         label_x.SetForegroundColour(self.text_colour)
@@ -776,6 +754,9 @@ class EnumProperty(WxCustomProperty):
     def __init__(self, parent, prop, *args, **kwargs):
         super().__init__(parent, prop, *args, **kwargs)
 
+        self.SetSize(0, 28)
+        self.choice_control = None
+
     def create_control(self):
         # label = wx.StaticText(self, label=self.label)
         super(EnumProperty, self).create_control()
@@ -785,35 +766,39 @@ class EnumProperty(WxCustomProperty):
         else:
             val = []
 
-        self.choice = wx.Choice(self, choices=val)
-        self.choice.SetSelection(self.value)
+        self.choice_control = wx.Choice(self, choices=val)
+        self.choice_control.SetSelection(self.value)
 
         # add to sizers
         self.sizer.Add(self.ctrlLabel, 0, wx.TOP, border=3)
-        self.sizer.Add(self.choice, 0)
+        self.sizer.Add(self.choice_control, 0)
 
         self.Bind(wx.EVT_SIZE, self.on_evt_size)
         self.Bind(wx.EVT_CHOICE, self.on_event_choice)
-        self.choice.Bind(wx.EVT_LEFT_DOWN, self.on_mouse_enter_win)
-        self.choice.Bind(wx.EVT_LEFT_UP, self.on_mouse_leave_win)
+
+        self.choice_control.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter)
+        self.choice_control.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave)
+
         self.Refresh()
 
-    def on_mouse_leave_win(self, evt):
-        evt.Skip()
-
-    def on_mouse_enter_win(self, evt):
-        evt.Skip()
-
     def set_control_value(self, val):
-        self.choice.SetSelection(val)
+        self.choice_control.SetSelection(val)
 
     def on_event_choice(self, evt):
-        value = self.choice.GetSelection()
+        value = self.choice_control.GetSelection()
         self.set_value(value)
         evt.Skip()
 
     def on_evt_size(self, evt):
-        self.choice.SetMinSize((self.parent.GetSize().x - 8, 22))
+        self.choice_control.SetMinSize((self.parent.GetSize().x - 8, 22))
+        evt.Skip()
+
+    def on_mouse_enter(self, evt):
+        LevelEditorEventHandler.UPDATE_XFORM_TASK = False
+        evt.Skip()
+
+    def on_mouse_leave(self, evt):
+        LevelEditorEventHandler.UPDATE_XFORM_TASK = True
         evt.Skip()
 
 

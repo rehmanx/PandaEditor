@@ -14,6 +14,7 @@ class UserModule:
         # get all attributes of module and add them to object data
         for name, val in self.class_instance.get_savable_atts():
             prop = EdUtils.EdProperty.Property(name, val)
+            # print("UserModule --> DataSaved name {0} value {1}".format(name, val))
             obj_data.add_property(prop)
 
         self.saved_data = obj_data
@@ -24,3 +25,4 @@ class UserModule:
         for name, val in properties:
             if hasattr(self.class_instance, name):
                 setattr(self.class_instance, name, val)
+                # print("reloaded name {0} value {1}".format(name, val))

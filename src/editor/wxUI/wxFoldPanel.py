@@ -6,8 +6,8 @@ from editor.constants import ICONS_PATH
 PANEL_FOLD_SIZE = 24.0
 LEFT_PADDING = 8
 
-FOLD_OPEN_ICON = ICONS_PATH + "\\" + "foldOpen_32.png"
-FOLD_CLOSE_ICON = ICONS_PATH + "\\" + "foldClose_32.png"
+FOLD_OPEN_ICON = ICONS_PATH + "\\" + "foldOpen_16.png"
+FOLD_CLOSE_ICON = ICONS_PATH + "\\" + "foldClose_16.png"
 
 
 class WxFoldPanel(wx.Panel):
@@ -25,10 +25,10 @@ class WxFoldPanel(wx.Panel):
         
         # load fold open and close icons resources
         bitmap_image = wx.Image(FOLD_OPEN_ICON, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
-        self.fold_open_icon = wx.StaticBitmap(self, -1, bitmap_image, (0, 2))
+        self.fold_open_icon = wx.StaticBitmap(self, -1, bitmap_image, (8, 3))
         
         bitmap_image = wx.Image(FOLD_CLOSE_ICON, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
-        self.fold_close_icon = wx.StaticBitmap(self, -1, bitmap_image, (0, 1))
+        self.fold_close_icon = wx.StaticBitmap(self, -1, bitmap_image, (6, 3))
         self.fold_close_icon.Hide()
         
         self.label = wx.StaticText(self, label=label)
@@ -42,34 +42,26 @@ class WxFoldPanel(wx.Panel):
         
         self.x_space = 0
         self.y_space = 0
+
+        self.max_y_space = 0
         
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
         
-        self.Bind(wx.EVT_LEFT_DOWN, self.on_clicked)
+        self.Bind(wx.EVT_LEFT_DOWN, self.on_evt_clicked)
         self.Bind(wx.EVT_SIZE, self.on_evt_size)
         
-    def add_control(self, property):
-        self.controls.append(property)
-        property.Hide()
-        
-    def clear_all_controls(self):
-        self.controls.clear()
-        
+    def add_control(self, _property):
+        self.controls.append(_property)
+
     def update_controls(self, shown=True):
-        # TO:DO **FIX** this is being called multiple times **********
-        # print("- x-")
-        panel_height = 0        
+        panel_height = 0
         self.max_y_space = 0
-        
+
         x_space = 0
         y_space = 0
 
         for control in self.controls:
-            if control in self.excluded_controls:
-                control.Hide()
-                continue
-
             if control.get_type() == "space":
                 x_space += control.get_x()
                 y_space += control.get_y()
@@ -77,35 +69,48 @@ class WxFoldPanel(wx.Panel):
                 continue
 
             control.SetSize(self.GetSize().x-16, control.GetSize().y)
-            control.SetPosition(wx.Point( LEFT_PADDING, panel_height + PANEL_FOLD_SIZE + y_space ))
+            control.SetPosition(wx.Point(LEFT_PADDING, panel_height + PANEL_FOLD_SIZE + y_space))
             panel_height += control.GetSize().y
 
             if shown is True:
                 control.Show()
             elif shown is False:
                 control.Hide()
-        
-    def on_clicked(self, evt):
-        if self.expanded is False:
-            self.fold_manager.expand(self)
+
+    def switch_expanded_state(self, state=None):
+        if state is None:
+            self.expanded = self.expanded
+        else:
+            self.expanded = state
+
+        if not self.expanded:
+            # if fold panel is closed
+            if len(self.controls) > 0:
+                self.fold_manager.expand(self)
+                self.update_controls(True)
+
             self.expanded = True
-            self.update_controls(True)
-            
             # change graphics to fold open
             self.fold_open_icon.Show()
             self.fold_close_icon.Hide()
         else:
+            # else if it's open
             self.update_controls(False)
             self.fold_manager.collapse(self)
             self.expanded = False
-            
             # change graphics to fold close
             self.fold_open_icon.Hide()
             self.fold_close_icon.Show()
-            
-        evt.Skip()
-        
+
+    def clear(self):
+        for control in self.controls:
+            control.Hide()
+        self.controls.clear()
+
     def get_expanded_size(self):
+        if len(self.controls) == 0:
+            return 0
+
         size = 0
         for ctrl in self.controls:
             if ctrl in self.excluded_controls or ctrl.get_type() == "space":
@@ -115,8 +120,11 @@ class WxFoldPanel(wx.Panel):
         size += self.max_y_space
         return size + 5
 
+    def on_evt_clicked(self, evt):
+        self.switch_expanded_state()
+        evt.Skip()
+
     def on_evt_size(self, evt):
-        # print("- y-")
         self.update_controls()
         evt.Skip()
 
@@ -140,7 +148,7 @@ class WxFoldPanelManager(wx.Panel):
             panel.SetPosition(wx.Point(0, 0))
         else:
             panel.SetPosition(wx.Point(0, PANEL_FOLD_SIZE*len(self.panels)))
-            
+
         self.panels.append(panel)
         return panel
 
@@ -185,7 +193,14 @@ class WxFoldPanelManager(wx.Panel):
             self.expand(panel)
 
         self.Layout()
-        
+
+    def reset(self):
+        for panel in self.panels:
+            panel.Hide()
+            panel.clear()
+            panel.SetSize(self.GetSize().x, panel.GetSize().y)
+        self.panels.clear()
+
     def on_event_size(self, evt):
         for panel in self.panels:
             panel.SetSize(self.GetSize().x, panel.GetSize().y)

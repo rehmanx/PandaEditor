@@ -1,31 +1,33 @@
 import os
 import shutil
 import wx
-import wx.lib.agw.customtreectrl as customtree
+import editor.constants as constants
 
 from wx.lib.scrolledpanel import ScrolledPanel
+from editor.wxUI.baseTreeControl import BaseTreeControl
 from editor.colourPalette import ColourPalette as Colours
-from editor.constants import object_manager, obs, SCENE_GEO, FILE_EXTENSIONS_ICONS_PATH
 from editor.utils.exceptionHandler import try_execute
 
 # icons / thumbnails names
-FOLDER_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "folder16.png"
+FOLDER_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "folder16.png"
 
-PY_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "pyFile32.png"
-USER_MOD_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "pyFile32.png"
-ED_TOOL_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "pyFile32.png"
+PY_FILE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "pyFile32.png"
+USER_MOD_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "pyFile32.png"
+ED_TOOL_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "pyFile32.png"
 
-EGG_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "pandaIcon.png"
+TXT_FILE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "textFileIcon.png"
 
-SOUND_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_sound.png"
-TEXT_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_txt.png"
-IMAGE_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_bmp.png"
-VIDEO_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_video.png"
+EGG_FILE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "pandaIcon.png"
 
-COLLAPSE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
-EXPAND_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
+SOUND_FILE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_sound.png"
+TEXT_FILE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_txt.png"
+IMAGE_FILE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_bmp.png"
+VIDEO_FILE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "file_extension_video.png"
 
-GENERIC_FILE_ICON = FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
+COLLAPSE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
+EXPAND_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
+
+GENERIC_FILE_ICON = constants.FILE_EXTENSIONS_ICONS_PATH + "\\" + "page_white.png"
 
 # icons for some common file extensions all other will have a generic file icon
 EXTENSIONS = {"folder": FOLDER_ICON,
@@ -40,6 +42,7 @@ EXTENSIONS = {"folder": FOLDER_ICON,
               "png": IMAGE_FILE_ICON,
 
               "py": PY_FILE_ICON,
+              "txt": TXT_FILE_ICON,
 
               "mp4": VIDEO_FILE_ICON,
               "mp3": IMAGE_FILE_ICON,
@@ -55,10 +58,12 @@ EVT_REMOVE_ITEM = wx.NewId()
 EVT_SHOW_IN_EXPLORER = wx.NewId()
 
 EVT_CREATE_PY_MOD = wx.NewId()
+EVT_CREATE_TXT_FILE = wx.NewId()
 EVT_CREATE_P3D_USER_MOD = wx.NewId()
 EVT_CREATE_ED_TOOL = wx.NewId()
 
-EVT_LOAD_RESOURCE = wx.NewId()
+EVT_LOAD_MODEL = wx.NewId()
+EVT_LOAD_ACTOR = wx.NewId()
 
 EVT_APPEND_LIBRARY = wx.NewId()
 EVT_IMPORT_ASSETS = wx.NewId()
@@ -93,12 +98,12 @@ class _ResourceBrowser(ScrolledPanel):
         self.SetupScrolling()
 
 
-class ResourceBrowser(customtree.CustomTreeCtrl):
+class ResourceBrowser(BaseTreeControl):
     def __init__(self, parent, wx_main, *args, **kwargs):
-        customtree.CustomTreeCtrl.__init__(self, parent, *args, **kwargs)
+        BaseTreeControl.__init__(self, parent, *args, **kwargs)
 
         self.wx_main = wx_main
-        object_manager.add_object("ProjectBrowser", self)
+        constants.object_manager.add_object("ProjectBrowser", self)
         self.organize_tree = True  # organize a tree based on file_extensions
 
         # ---------------------------------------------------------------------------- #
@@ -153,8 +158,9 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         # file menus associates a file extension with, or an extension with a function,
         # which creates its menus, to be used in popup menus
         self.file_menus = {
-            "directory": [self.create_directory_menu_items, self.create_generic_menu_items],
+            "directory": [self.create_add_menu_items, self.create_generic_menu_items],
             "py": [self.create_generic_menu_items],
+            "txt": [self.create_generic_menu_items],
             "generic": [self.create_generic_menu_items],
             "pz": [self.create_3d_model_menu_items, self.create_generic_menu_items],
             "egg": [self.create_3d_model_menu_items, self.create_generic_menu_items],
@@ -170,10 +176,12 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
             EVT_SHOW_IN_EXPLORER: (self.on_file_op, "show_in_explorer"),
 
             EVT_CREATE_PY_MOD: (self.create_asset, "py_mod"),
+            EVT_CREATE_TXT_FILE: (self.create_asset, "txt_file"),
             EVT_CREATE_P3D_USER_MOD: (self.create_asset, "p3d_user_mod"),
             EVT_CREATE_ED_TOOL: (self.create_asset, "p3d_ed_tool"),
 
-            EVT_LOAD_RESOURCE: (self.load_resource, "3d_model"),
+            EVT_LOAD_MODEL: (self.load_model, None),
+            EVT_LOAD_ACTOR: (self.load_actor, None),
 
             EVT_APPEND_LIBRARY: (self.append_library, None),
             EVT_IMPORT_ASSETS: (self.import_assets, None),
@@ -185,15 +193,15 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         self.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_item_selected)
         self.Bind(wx.EVT_TREE_ITEM_ACTIVATED, self.on_item_activated)
 
-        self.Bind(wx.EVT_LEFT_DOWN, self.on_evt_left_down)
-        self.Bind(wx.EVT_LEFT_UP, self.on_evt_left_up)
-        self.Bind(wx.EVT_MOTION, self.on_evt_mouse_move)
+        # self.Bind(wx.EVT_LEFT_DOWN, self.on_evt_left_down)
+        # self.Bind(wx.EVT_LEFT_UP, self.on_evt_left_up)
+        # self.Bind(wx.EVT_MOTION, self.on_evt_mouse_move)
 
         self.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.create_popup_menu)
         self.Bind(wx.EVT_MENU, self.on_select_context)
 
     files_and_extensions = {}  # temporarily saves all files with same extensions when organizing tree
-    tmp_selections = []  #
+    tmp_selections = []
 
     # ----------------- All methods bounded to different tree events ----------------- #
     def on_item_expanded(self, event):
@@ -209,7 +217,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
             data = self.GetItemData(item)
             selections.append((name, data))
 
-        obs.trigger("SelectTreeItem", selections)
+        constants.obs.trigger("SelectTreeItem", selections)
         evt.Skip()
 
     def on_item_activated(self, evt):
@@ -217,49 +225,6 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         if os.path.isfile(item_path) and item_path.split(".")[-1] == "py":
             pass
             # self.open_file(item_path)
-        evt.Skip()
-
-    def on_evt_left_down(self, evt):
-        self.mouse_left_down = True
-        evt.Skip()
-
-    def on_evt_mouse_move(self, evt):
-        if self.mouse_left_down:
-            self.is_dragging = True
-
-            for item in self.tmp_selections:
-                self.SetItemTextColour(item, wx.Colour(0, 0, 0, 255))
-
-            # highlight item under the mouse, when dragging
-            self.tmp_selections.clear()
-            x, y = evt.GetPosition()
-            (_id, flag) = self.HitTest((x, y))
-            if _id:
-                self.SetItemTextColour(_id, wx.Colour(255, 255, 190, 255))
-                self.tmp_selections.append(_id)
-
-        if not self.is_dragging and len(self.tmp_selections) > 0:
-            for item in self.tmp_selections:
-                self.SetItemTextColour(item, wx.Colour(0, 0, 0, 255))
-
-        evt.Skip()
-
-    def on_evt_left_up(self, evt):
-        # do drag drop here
-        x, y = evt.GetPosition()
-        (_id, flag) = self.HitTest((x, y))
-
-        if self.is_dragging and _id:
-            # print("{0} dropped onto {1}".format(self.GetSelections(), self.GetItemText(_id)) )
-            for item in self.GetSelections():
-                if _id == item:
-                    continue
-
-                self.do_drag_drop(self.GetItemData(item), self.GetItemData(_id))
-
-        self.mouse_left_down = False
-        self.is_dragging = False
-
         evt.Skip()
 
     def create_popup_menu(self, evt):
@@ -301,7 +266,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
     def create_or_rebuild_tree(self, path, rebuild_event: bool):
         """rebuild a tree from scratch from argument path or rebuild tree from libraries if rebuild_event"""
         if not rebuild_event:
-            print("ResourceBrowser --> Building resources")
+            # print("ResourceBrowser --> Building resources")
 
             assert os.path.exists(path), "error: path does not exist"
             assert os.path.isdir(path), "error: path is not a directory"
@@ -326,7 +291,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
             self.create_tree_from_dir(dir_path=path, parent=parent_item)
             self.ExpandAll()
         else:
-            print("ResourceBrowser --> Rebuilding resources")
+            # print("ResourceBrowser --> Rebuilding resources")
 
             selection = self.GetSelection()
             if selection:
@@ -354,10 +319,6 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
 
             self.ExpandAll()
             self.Refresh()
-
-            # select tree item that was previously selected.
-            if selection in self.name_to_item.keys():
-                self.SelectItem(self.name_to_item[selection])
 
     def create_tree_from_dir(self, dir_path=None, parent=None):
         def append_item(_file_path, _file_name):
@@ -427,12 +388,13 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         return True
 
     # ----------------- All methods for building context menus ----------------- #
-    def create_directory_menu_items(self, parent_menu):
+    def create_add_menu_items(self, parent_menu):
         # add objects menu
         objects_items = [
             (EVT_CREATE_PY_MOD, "&Python Module", None),
             (EVT_CREATE_P3D_USER_MOD, "&User Module", None),
             (EVT_CREATE_ED_TOOL, "&Editor Plugin", None),
+            (EVT_CREATE_TXT_FILE, "&Text File", None),
             (EVT_NEW_DIR, "&New Folder", None)
         ]
         objects_menu = wx.Menu()
@@ -449,7 +411,8 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         build_menu(parent_menu, library_items)
 
     def create_3d_model_menu_items(self, parent_menu):
-        menu_items = [(EVT_LOAD_RESOURCE, "&Load Model", None)]
+        menu_items = [(EVT_LOAD_MODEL, "&Load Model", None),
+                      (EVT_LOAD_ACTOR, "&Load Actor", None)]
         build_menu(parent_menu, menu_items)
 
     def create_generic_menu_items(self, parent_menu):
@@ -481,8 +444,10 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         elif op == "remove_item" and can_perform_operation():
             self.remove_item()
 
-    @staticmethod
-    def do_drag_drop(src_file: str, target_dir: str):
+    def do_drag_drop(self, src_item: str, target_item: str):
+        src_file = self.GetItemData(src_item)
+        target_dir = self.GetItemData(target_item)
+
         # move a source file to target directory, the source file and target directory must exist,
         """src=source file, target=target directory"""
         # make sure source is a file & target directory exists
@@ -494,15 +459,15 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         target_file = target_dir + "/" + src_file.split("/")[-1]
 
         # ---------------TO:DO---------------
-        # make sure the target_file already does not exists, if it does exists then ask
+        # make sure the target_file already does not exist, if it does exist then ask
         # user for a file overwrite operation
         if os.path.isfile(target_file):
-            msg = "file {0} already exists in directort {1}".format(src_file, target_dir)
+            msg = "file {0} already exists in directory {1}".format(src_file, target_dir)
             print(msg)
             return
 
         shutil.move(src_file, target_file)
-        print("from {0} <==TO==> {1}".format(src_file, target_dir))
+        # print("from {0} <==TO==> {1}".format(src_file, target_dir))
         return True
 
     @staticmethod
@@ -523,7 +488,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
             os.mkdir(new_dir)
             return _new_dir_name
 
-        wx_main = object_manager.get("WxMain")
+        wx_main = constants.object_manager.get("WxMain")
         dm = wx_main.dialogue_manager
         dm.create_dialog("TextEntryDialog", "New Directory", dm, descriptor_text="Enter name", ok_call=on_ok)
 
@@ -560,7 +525,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
         dm = self.wx_main.dialogue_manager
         dm.create_dialog("TextEntryDialog",
                          "Rename Item", dm, descriptor_text="Rename Selection", ok_call=on_ok,
-                         starting_text=self.GetItemText(self.GetSelection()))
+                         initial_text=self.GetItemText(self.GetSelection()))
 
     def duplicate(self, *args):
         def get_unique_file_name(_file_name, _ext, _original):
@@ -583,7 +548,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
                     break
 
                 # create a unique file name by adding a number to original file name
-                _unique_name = _file_name + str(counter) + "." + _ext
+                _unique_name = _file_name + str(counter) + _ext
                 if not os.path.exists(head + "//" + _unique_name):
                     is_name_unique = True
 
@@ -604,21 +569,16 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
             return
 
         for sel in selections:
-            item = self.GetItemText(sel)
-
-            file_name, extension = item.split(".")  # get file_name and extension
             path = self.GetItemData(sel)
-
             if os.path.isdir(path):
-                print("duplicating a directory is currently not supported...!")
                 pass
+
+            item = self.GetItemText(sel)
+            file_name, extension = os.path.splitext(item)  # get file_name and extension
 
             unique_name = get_unique_file_name(file_name, extension, path)  # get a unique file name
             if unique_name:
                 try_execute(_duplicate, path, unique_name)
-
-            # new_file = file_name + str(i) + "." + extension  # and create a unique one
-            # try_execute(_duplicate, path, new_file)
 
     def remove_item(self, *args):
         def on_ok():
@@ -633,7 +593,7 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
 
                 if item_text in self.libraries.keys():
                     del self.libraries[item_text]
-                    obs.trigger("OnRemoveLibrary", item_path)
+                    constants.obs.trigger("OnRemoveLibrary", item_path)
                 else:
                     result = try_execute(os.remove, item_path)
 
@@ -657,16 +617,17 @@ class ResourceBrowser(customtree.CustomTreeCtrl):
                 print("path already exists...!")
                 return
 
-            obs.trigger("CreateAsset", _type, path)
+            constants.obs.trigger("CreateAsset", _type, path)
 
-        wx_main = object_manager.get("WxMain")
+        wx_main = constants.object_manager.get("WxMain")
         dm = wx_main.dialogue_manager
         dm.create_dialog("TextEntryDialog", "CreateNewAsset", dm, descriptor_text="New Asset Name", ok_call=on_ok)
 
-    def load_resource(self, _resource_type):
-        obs.trigger("WxEvent", "load_resource",
-                    resource_type=_resource_type,
-                    resource_path=self.GetItemPyData(self.GetSelection()))
+    def load_model(self, *args):
+        constants.obs.trigger("WxEvent", constants.ui_Evt_Load_Model, self.GetItemPyData(self.GetSelection()))
+
+    def load_actor(self, *args):
+        constants.obs.trigger("WxEvent", constants.ui_Evt_Load_Actor, self.GetItemPyData(self.GetSelection()))
 
     def import_assets(self, *args):
         def create_wild_card(wild_card=""):

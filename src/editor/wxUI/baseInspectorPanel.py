@@ -7,17 +7,37 @@ from editor.wxUI.wxFoldPanel import WxFoldPanelManager
 from editor.colourPalette import ColourPalette as Colours
 
 
+class TextPanel(wx.Panel):
+    def __init__(self, parent, text, *args):
+        wx.Panel.__init__(self, parent, *args)
+
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+
+        bold_font = wx.Font(10, wx.DEFAULT, wx.NORMAL, wx.BOLD)
+        text_colour = wx.Colour(255, 255, 255, 255)
+
+        self.label = wx.StaticText(self, 0, "Readme")
+        self.label.SetForegroundColour(text_colour)
+        self.label.SetFont(bold_font)
+
+        self.text = wx.StaticText(self, 0, text, style=wx.TE_MULTILINE)
+        self.text.SetForegroundColour(text_colour)
+
+        self.sizer.Add(self.label, 0)
+        self.sizer.Add(self.text, 1)
+
+        self.SetSizer(self.sizer)
+        self.Layout()
+
+
 class BaseInspectorPanel(ScrolledPanel):
     def __init__(self, parent, *args, **kwargs):
         ScrolledPanel.__init__(self, parent, *args, **kwargs)
+
         self.SetBackgroundColour(Colours.NORMAL_GREY)
         self.SetWindowStyleFlag(wx.BORDER_SUNKEN)
 
         self.wxMain = parent
-
-        self._is_active = True
-        self.selected_object = None
-        self._layout_auto = False
 
         self.property_and_type = {
             int: wxProperty.IntProperty,  # -1
@@ -42,23 +62,22 @@ class BaseInspectorPanel(ScrolledPanel):
 
             "static_box": wxProperty.StaticBox,  # -14
         }
+
         self.property_and_name = {}
+        self.selected_object = None
 
-        # offset
-        self.offset = 8  #
-
-        # set up a WxFoldPanelManager
-        self.fold_manager = WxFoldPanelManager(self)
+        self.fold_manager = None  # a FoldPanelManager for laying out variables of a python module
+        self.text_panel = None  # a text_panel for displaying .txt files
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sizer.Add(self.fold_manager, 0, wx.EXPAND)
         self.SetSizer(self.sizer)
+
         self.Bind(wx.EVT_SIZE, self.on_event_size)
 
     def enable(self):
         print("base inspector panel enabled")
-        """on enbale is called as soon as this panel is added in editor"""
-        if self._layout_auto and self.selected_object is not None:
+        """on enable is called as soon as this panel is added in editor"""
+        if self.selected_object is not None:
             self.layout_object_properties(self.selected_object)
 
     def disable(self):
@@ -71,103 +90,103 @@ class BaseInspectorPanel(ScrolledPanel):
         """on remove is called as soon as this panel is removed permanently"""
         pass
 
-    def layout_object_properties(self, obj):
-        self.reset()
-        self.selected_object = obj
-        self._is_active = True
+    def has_object(self):
+        if self.selected_object is not None:
+            return True
+        return False
 
-        try:
-            name = self.selected_object._name
-        except AttributeError:
-            name = self.selected_object.get_name()
+    def layout_object_properties(self, obj, name, properties):
+        self.reset()
+
+        self.selected_object = obj
 
         name = name[0].upper() + name[1:]
 
+        self.fold_manager = WxFoldPanelManager(self)
+        self.sizer.Add(self.fold_manager, 0, wx.EXPAND)
+
         fold_panel = self.fold_manager.add_panel(name)
-
-        properties = obj.get_properties()
-
-        check_for_hidden = hasattr(obj, "_hidden_properties")
+        fold_panel.Hide()
 
         for prop in properties:
-            if check_for_hidden and obj._hidden_properties.__contains__(prop.name):
-                continue
             prop.validate()
             if prop.is_valid:
-                self.create_wx_prop_object(prop, fold_panel, self.offset)
+                # get wx property object
+                wx_property = self.get_wx_prop_object(prop, fold_panel)
+                if wx_property:
+                    # and add it to fold panel
+                    fold_panel.add_control(wx_property)
             else:
                 print("{0} property validation failed".format(prop.name))
 
-        # fold_panel.update_controls(False)
         fold_panel.update_controls()
         self.fold_manager.expand(fold_panel)
-        self.sizer.Layout()
 
-    def create_wx_prop_object(self, _property, parent, hoffset):
+        fold_panel.Show()
+
+    def get_wx_prop_object(self, _property, parent):
         wx_property = None
 
         if self.property_and_type.__contains__(_property.get_type()):
             wx_property = self.property_and_type[_property.get_type()]
-            wx_property = wx_property(parent, _property, h_offset=hoffset)
+            wx_property = wx_property(parent, _property, h_offset=6)
 
             # wx_property.
             wx_property.create_control()
             wx_property.on_control_created()
 
             self.property_and_name[_property.get_name()] = wx_property
-            parent.add_control(wx_property)
 
         return wx_property
 
-    def update_properties_panel(self, obj=False):
-        if obj:
-            self.selected_object = obj
-
+    def update_properties_panel(self, force_update_all=False):
         for key in self.property_and_name.keys():
             wx_prop = self.property_and_name[key]
 
             if wx_prop.property.get_type() in ["button"]:
                 continue
 
-            # print(wx_prop.property.get_value())
+            if not force_update_all and wx_prop.property.get_type() is "choice":
+                continue
+
             wx_prop.set_control_value(wx_prop.property.get_value())
 
-    def refresh(self, obj=None):
-        if obj is not None:
-            self.selected_object = obj
-        else:
-            return
+    def set_text(self, text_file):
+        self.reset()
 
+        with open(text_file, "r", encoding="utf-8") as file:
+            readme_text = file.read()
+
+        self.text_panel = TextPanel(self, readme_text)
+        self.text_panel.SetMinSize((self.GetSize().x - 40, self.GetSize().y - 40))
+
+        self.sizer.Add(self.text_panel, 1, wx.EXPAND | wx.ALL, border=10)
+        self.Layout()
+
+    def refresh(self, obj=None):
         self.layout_object_properties(self.selected_object)
 
     def reset(self):
-        # TO:DO rewrite this function, fold_manager should clear all of its control
-        # objects
-        self.sizer.Clear(True)
-        self.fold_manager = WxFoldPanelManager(self)
-        self.sizer.Add(self.fold_manager, 1, wx.EXPAND)
-        self.Refresh()
-
         self.selected_object = None
         self.property_and_name.clear()
 
-    def get_object(self):
-        if self.is_active():
-            return self.selected_object
-        return False
+        if self.fold_manager is not None:
+            self.fold_manager.reset()
+            self.fold_manager.Destroy()
+            self.fold_manager = None
 
-    def is_active(self):
-        return self._is_active
+        if self.text_panel is not None:
+            self.text_panel.Destroy()
+            self.text_panel = None
 
-    def set_active(self, val: bool):
-        self._is_active = val
-
-    def set_layout_auto(self, val: bool):
-        self._layout_auto = val
-
-    def set_object(self, obj):
-        self.selected_object = obj
+        self.sizer.Clear()
+        self.Layout()
 
     def on_event_size(self, evt):
-        self.fold_manager.SetMinSize((self.GetSize().x - 20, self.fold_manager.get_size_y()))
+        if self.fold_manager is not None:
+            self.fold_manager.SetMinSize((self.GetSize().x - 20, self.fold_manager.get_size_y()))
+
+        if self.text_panel is not None:
+            self.text_panel.SetMinSize((self.GetSize().x - 40, self.GetSize().y - 40))
+
         evt.Skip()

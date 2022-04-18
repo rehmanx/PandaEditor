@@ -1,19 +1,19 @@
 
-def convert_to_range(old_min, old_max, new_min, new_max, value):
+def map_to_range(old_min, old_max, new_min, new_max, value):
     """convert from one range to another"""
-    oldRange = old_max - old_min
-    if oldRange == 0:
-        newValue = new_min
-        return newValue
+    old_range = old_max - old_min
+    if old_range == 0:
+        new_value = new_min
+        return new_value
     else:
-        newRange = new_max - new_min
-        newValue = (((value - old_min) * newRange) / oldRange) + new_min
-        return newValue
+        new_range = new_max - new_min
+        new_value = (((value - old_min) * new_range) / old_range) + new_min
+        return new_value
 
 
-def clamp(val, min, max):
+def clamp(val, min_value, max_value):
     """clamps a value between min and max"""
-    n = (val - min) / (max - min)
+    n = (val - min_value) / (max_value - min_value)
     return n
 
 

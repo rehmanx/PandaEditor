@@ -5,7 +5,8 @@ from wx.lib.scrolledpanel import ScrolledPanel
 from thirdparty.wxCustom.auiManager import AuiManager
 from editor.wxUI.wxMenuBar import WxMenuBar
 
-from editor.wxUI.resourceBrowser import ResourceBrowser, _ResourceBrowser
+from editor.wxUI.resourceBrowser import _ResourceBrowser
+from editor.wxUI.sceneBrowser import SceneBrowserPanel
 from editor.wxUI.inspectorPanel import InspectorPanel
 from editor.wxUI.logPanel import LogPanel
 from editor.wxUI.auxiliaryPanel import AuxiliaryPanel
@@ -123,12 +124,22 @@ class WxFrame(wx.Frame):
         # create various wx-panels
         self.ed_viewport_panel = wxPanda.Viewport(self, style=wx.BORDER_SUNKEN)  # editor_viewport
         self.inspector_panel = InspectorPanel(self)  # inspector panel
-        self.inspector_panel.set_layout_auto(False)
+        # self.inspector_panel.set_layout_auto(False)
         self.log_panel = LogPanel(self)  # log panel
         self.resource_browser = _ResourceBrowser(self)
+        self.scene_graph_panel = SceneBrowserPanel(self)
         self.auxiliary_panel = AuxiliaryPanel(self)
 
         self.panel_defs = {
+            "SceneBrowser": (self.scene_graph_panel,
+                             True,
+                             aui.AuiPaneInfo().
+                             Name("SceneGraph").
+                             Caption("SceneGraph").
+                             CloseButton(True).
+                             MaximizeButton(False).
+                             Direction(4).Layer(0).Row(0).Position(0)),
+
             # dir=4;layer=0;row=0;pos=0
             "EditorViewport": (self.ed_viewport_panel,
                                True,
@@ -137,7 +148,7 @@ class WxFrame(wx.Frame):
                                Caption("EditorViewport").
                                CloseButton(False).
                                MaximizeButton(True).
-                               Direction(4).Layer(0).Row(0).Position(0)),
+                               Direction(4).Layer(0).Row(1).Position(0)),
 
             # dir=4;layer=0;row=2;pos=0
             "ObjectInspectorTab": (self.inspector_panel,
@@ -146,7 +157,7 @@ class WxFrame(wx.Frame):
                                    Name("ObjectInspectorTab").
                                    Caption("InspectorTab").
                                    CloseButton(True).
-                                   MaximizeButton(True).
+                                   MaximizeButton(False).
                                    Direction(4).Layer(0).Row(2).Position(0)),
 
             # dir=3;layer=1;row=0;pos=0
@@ -156,7 +167,7 @@ class WxFrame(wx.Frame):
                                 Name("ResourceBrowser").
                                 Caption("ResourceBrowser").
                                 CloseButton(True).
-                                MaximizeButton(True).
+                                MaximizeButton(False).
                                 Direction(3).Layer(1).Row(0).Position(1)),
 
             # dir=3;layer=1;row=0;pos=1
@@ -166,7 +177,7 @@ class WxFrame(wx.Frame):
                        Name("LogTab").
                        Caption("LogTab").
                        CloseButton(True).
-                       MaximizeButton(True).
+                       MaximizeButton(False).
                        Direction(3).Layer(1).Row(0).Position(0)),
 
             "AuxiliaryPanel": (self.auxiliary_panel,
@@ -174,7 +185,7 @@ class WxFrame(wx.Frame):
                                aui.AuiPaneInfo().Name("AuxiliaryPanel").
                                Caption("AuxiliaryPanel").
                                CloseButton(True).
-                               MaximizeButton(True))
+                               MaximizeButton(False))
         }
 
         self.SetMinSize((800, 600))
@@ -205,13 +216,18 @@ class WxFrame(wx.Frame):
 
             self.aui_manager.AddPane(pane_def[0], pane_def[2])
 
+            if pane_def[2].name == "SceneGraph":
+                proportion_x = (20 / 100) * size.x
+                proportion_y = (60 / 100) * size.y
+                pane_def[2].MinSize1(wx.Size(proportion_x, proportion_y))
+
             if pane_def[2].name == "EditorViewport":
-                proportion_x = (70 / 100) * size.x
+                proportion_x = (55 / 100) * size.x
                 proportion_y = (60 / 100) * size.y
                 pane_def[2].MinSize1(wx.Size(proportion_x, proportion_y))
 
             if pane_def[2].name == "ObjectInspectorTab":
-                proportion_x = (30 / 100) * size.x
+                proportion_x = (25 / 100) * size.x
                 proportion_y = (60 / 100) * size.y
                 pane_def[2].MinSize1(wx.Size(proportion_x, proportion_y))
                 pane_def[2].dock_proportion = 100
@@ -396,7 +412,6 @@ class WxFrame(wx.Frame):
         evt.Skip()
 
     def on_event_size(self, event=None):
-        # tell aui_manager to start managing these panels
         size = self.ed_viewport_panel.GetSize()
         obs.trigger("EventWxSize", size)
         if event is not None:

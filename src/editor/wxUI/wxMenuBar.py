@@ -12,6 +12,7 @@ EVT_APPEND_LIBRARY = wx.NewId()
 EVT_ADD_EDITOR_TAB = wx.NewId()
 EVT_ADD_INSPECTOR_TAB = wx.NewId()
 EVT_ADD_RESOURCES_TAB = wx.NewId()
+EVT_ADD_SCENE_GRAPH_TAB = wx.NewId()
 EVT_ADD_LOG_TAB = wx.NewId()
 EVT_ADD_AUXILIARY_TAB = wx.NewId()
 
@@ -38,6 +39,7 @@ UI_TAB_EVENTS = {
     EVT_ADD_EDITOR_TAB: "EditorViewport",
     EVT_ADD_INSPECTOR_TAB: "ObjectInspectorTab",
     EVT_ADD_RESOURCES_TAB: "ResourceBrowser",
+    EVT_ADD_SCENE_GRAPH_TAB: "SceneBrowser",
     EVT_ADD_LOG_TAB: "LogTab",
     EVT_ADD_AUXILIARY_TAB: "AuxiliaryPanel"
 }
@@ -152,6 +154,7 @@ class WxMenuBar(wx.MenuBar):
 
         menu_items = [(EVT_ADD_INSPECTOR_TAB, "InspectorTab", None),
                       (EVT_ADD_RESOURCES_TAB, "ResourceBrowser", None),
+                      (EVT_ADD_SCENE_GRAPH_TAB, "SceneGraph", None),
                       (EVT_ADD_LOG_TAB, "LogTab", None),
                       (EVT_ADD_AUXILIARY_TAB, "AuxiliaryPanel", None)]
         build_menu_bar(tabs_menu, menu_items)

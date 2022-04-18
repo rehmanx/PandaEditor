@@ -3,56 +3,6 @@ from panda3d.core import *
 from editor.p3d.object import Object
 
 
-# Three Axis Coordinate Plane Grid Class (ThreeAxisGrid)
-# Mathew Lloyd AKA 'Forklift', August 2008
-# 'matthewadamlloyd@gmail.com'
-#
-#	The grid can be created with any number of axis planes in mind.
-#	Simply set size values for the planes you wish to use. Sizes of
-#	zero will be ignored. By default, you can create single and three
-#	plane setups. Use plane visibility to disable any planes you don't
-#	need to acheive a 2 plane setup.
-#
-#	To create a grid, first create an instance of this class. Then call
-#	its 'create' method to create the grid based on the class member
-#	variables. 'create' will return a NodePath instance that must be
-#	parented to 'render' in order to acheive visibility. Once the grid
-#	is created, its settings cannot be changed as the 'create' method
-#	generates the geometry procedurally using Panda's LineSeg class.
-#	 If another grid or a different grid is needed, create a new
-#	instance of the ThreeAxisGrid class and setup as described above.
-#
-#	A 'refresh' method is planned for a future version. This method
-#	would allow you to change a ThreeAxisGrid instance's settings,
-#	then recreate the geometry without changing the
-#	parentNodePath of the instance.
-#
-# ThreeAxisGrid class member variables are as follows:
-#	'xsize' is the x axis length in units of the grid
-#	'ysize' is the y axis length in units of the grid
-#	'zsize' is the z axis lenght in units of the grid
-#	'gridstep' is the spacing in units at which primary grid lines
-#		will be drawn
-#	'subdiv' is the number used to subdivide the main (gridstep based)
-#		grid lines for drawing secondary grid lines example: if the
-#		primary grid lines are drawn every 10 units, and subdivision
-#		is set at 4, then secondary grid lines will be drawn
-#		every 2.5 units
-#	'XYPlaneShow' and so forth: used to disable a plane with the
-#		creation of 2 plane grids in mind. 1 is on, 0 is off.
-#	'endCapLinesShow' is used to turn grid border edges on or off.
-#		1 is on, 0 is off.
-#	'xaxiscolor' and so forth: axis colors are defaulted to the
-#		Maya standard axis colors
-#	'gridcolor' is the RGB color of the primary grid lines,
-#		defaulted to black
-#	'subdivcolor' is the RGB color of the secondary grid lines,
-#		defaulted to dark gray
-#	'axisThickness' and so forth: sets the thickness of the
-#		respective component's lines
-#	'parentNode' and 'parentNodePath' are used to contain
-#		the three LineSeg instance nodes and paths
-
 class ThreeAxisGrid(Object):
     def __init__(self, *args, **kwargs):
         Object.__init__(self, *args, **kwargs)
@@ -61,36 +11,31 @@ class ThreeAxisGrid(Object):
         axis_xz = 0
         axis_yz = 0
 
-        self.XSize = kwargs.pop("xsize", 50)
-        self.YSize = kwargs.pop("ysize", 50)
-        self.ZSize = kwargs.pop("zsize", 50)
-        self.gridStep = kwargs.pop("gridstep", 10)
-        self.subdiv = kwargs.pop("subdiv", 10)
+        self.x_size = 200
+        self.y_size = 200
+        self.z_size = 200
+        self.gridStep = 10
+        self.sub_divisions = 10
 
         # Plane and end cap line visibility (1 is show, 0 is hide)
-        self.XYPlaneShow = axis_xy
-        self.XZPlaneShow = axis_xz
-        self.YZPlaneShow = axis_yz
-        self.endCapLinesShow = 1
-
-        # Alpha variables for each plane
-        # self.XYPlaneAlpha = 1
-        # self.XZPlaneAlpha = 1
-        # self.YZPlaneAlpha = 1
+        self.xy_plane_show = axis_xy
+        self.xz_plane_show = axis_xz
+        self.yz_plane_show = axis_yz
+        self.show_end_cape_lines = 1
 
         # Colors (RGBA passed as a VBase4 object)
-        self.XAxisColor = VBase4(1, 0, 0, 1)
-        self.YAxisColor = VBase4(0, 1, 0, 1)
-        self.ZAxisColor = VBase4(0, 0, 1, 1)
-        self.gridColor = VBase4(0, 0, 0, 1)
-        self.subdivColor = VBase4(.35, .35, .35, 1)
+        self.x_axis_color = VBase4(1, 0, 0, 1)
+        self.y_axis_color = VBase4(0, 1, 0, 1)
+        self.z_axis_color = VBase4(0, 0, 1, 1)
+        self.grid_color = VBase4(0, 0, 0, 1)
+        self.sub_div_color = VBase4(.35, .35, .35, 1)
 
         # Line thicknesses (in pixels)
-        self.axisThickness = 1
-        self.gridThickness = 1
-        self.subdivThickness = 1
+        self.axis_thickness = 1
+        self.grid_thickness = 1
+        self.sub_div_thickness = 1
 
-        # Axis, grid, and subdiv lines must be seperate LineSeg
+        # Axis, grid, and subdivisions lines must be separate LineSeg
         # objects in order to allow different thicknesses.
         # The parentNode groups them together for convenience.
         # All may be accessed individually if necessary.
@@ -108,212 +53,199 @@ class ThreeAxisGrid(Object):
         self.gridLines = LineSegs()
         self.subdivLines = LineSegs()
 
-    def create(self):
+    def create(self, size, grid_step, sub_divisions):
+        self.x_size = self.y_size = self.z_size = size
+        self.gridStep = grid_step
+        self.sub_divisions = sub_divisions
+
+        self.axisLines = LineSegs()
+        self.gridLines = LineSegs()
+        self.subdivLines = LineSegs()
 
         # Set line thicknesses
-        self.axisLines.setThickness(self.axisThickness)
-        self.gridLines.setThickness(self.gridThickness)
-        self.subdivLines.setThickness(self.subdivThickness)
-
-        if (self.XSize != 0):
-            # Draw X axis line
-            self.axisLines.setColor(self.XAxisColor)
-            self.axisLines.moveTo(-(self.XSize), 0, 0)
-            self.axisLines.drawTo(self.XSize, 0, 0)
-
-        if (self.YSize != 0):
-            # Draw Y axis line
-            self.axisLines.setColor(self.YAxisColor)
-            self.axisLines.moveTo(0, -(self.YSize), 0)
-            self.axisLines.drawTo(0, self.YSize, 0)
-
-        # if (self.ZSize != 0):
-        #     # Draw Z axis line
-        #     self.axisLines.setColor(self.ZAxisColor)
-        #     self.axisLines.moveTo(0, 0, -(self.ZSize))
-        #     self.axisLines.drawTo(0, 0, self.ZSize)
+        self.axisLines.setThickness(self.axis_thickness)
+        self.gridLines.setThickness(self.grid_thickness)
+        self.subdivLines.setThickness(self.sub_div_thickness)
 
         # Check to see if primary grid lines should be drawn at all
         if self.gridStep != 0:
 
             # Draw primary grid lines
-            self.gridLines.setColor(self.gridColor)
+            self.gridLines.setColor(self.grid_color)
 
             # Draw primary grid lines metering x axis if any x-length
-            if self.XSize != 0:
+            if self.x_size != 0:
+                if (self.y_size != 0) and (self.xy_plane_show != 0):
+                    # Draw y lines across x-axis starting from center moving out XY Plane
+                    for x in self.myfrange(0, self.x_size, self.gridStep):
+                        self.gridLines.moveTo(x, -self.y_size, 0)
+                        self.gridLines.drawTo(x, self.y_size, 0)
+                        self.gridLines.moveTo(-x, -self.y_size, 0)
+                        self.gridLines.drawTo(-x, self.y_size, 0)
 
-                if (self.YSize != 0) and (self.XYPlaneShow != 0):
-                    # Draw y lines across x axis starting from center moving out
-                    # XY Plane
-                    for x in self.myfrange(0, self.XSize, self.gridStep):
-                        self.gridLines.moveTo(x, -self.YSize, 0)
-                        self.gridLines.drawTo(x, self.YSize, 0)
-                        self.gridLines.moveTo(-x, -self.YSize, 0)
-                        self.gridLines.drawTo(-x, self.YSize, 0)
-
-                    if self.endCapLinesShow != 0:
+                    if self.show_end_cape_lines != 0:
                         # Draw endcap lines
-                        self.gridLines.moveTo(self.XSize, -self.YSize, 0)
-                        self.gridLines.drawTo(self.XSize, self.YSize, 0)
-                        self.gridLines.moveTo(-self.XSize, -self.YSize, 0)
-                        self.gridLines.drawTo(-self.XSize, self.YSize, 0)
+                        self.gridLines.moveTo(self.x_size, -self.y_size, 0)
+                        self.gridLines.drawTo(self.x_size, self.y_size, 0)
+                        self.gridLines.moveTo(-self.x_size, -self.y_size, 0)
+                        self.gridLines.drawTo(-self.x_size, self.y_size, 0)
 
-                if (self.ZSize != 0) and (self.XZPlaneShow != 0):
+                if (self.z_size != 0) and (self.xz_plane_show != 0):
                     # Draw z lines across x axis starting from center moving out
                     # XZ Plane
-                    for x in self.myfrange(0, self.XSize, self.gridStep):
-                        self.gridLines.moveTo(x, 0, -(self.ZSize))
-                        self.gridLines.drawTo(x, 0, self.ZSize)
-                        self.gridLines.moveTo(-x, 0, -(self.ZSize))
-                        self.gridLines.drawTo(-x, 0, self.ZSize)
+                    for x in self.myfrange(0, self.x_size, self.gridStep):
+                        self.gridLines.moveTo(x, 0, -self.z_size)
+                        self.gridLines.drawTo(x, 0, self.z_size)
+                        self.gridLines.moveTo(-x, 0, -self.z_size)
+                        self.gridLines.drawTo(-x, 0, self.z_size)
 
-                    if (self.endCapLinesShow != 0):
+                    if self.show_end_cape_lines != 0:
                         # Draw endcap lines
-                        self.gridLines.moveTo(self.XSize, 0, -(self.ZSize))
-                        self.gridLines.drawTo(self.XSize, 0, self.ZSize)
-                        self.gridLines.moveTo(-(self.XSize), 0, -(self.ZSize))
-                        self.gridLines.drawTo(-(self.XSize), 0, self.ZSize)
+                        self.gridLines.moveTo(self.x_size, 0, -self.z_size)
+                        self.gridLines.drawTo(self.x_size, 0, self.z_size)
+                        self.gridLines.moveTo(-self.x_size, 0, -self.z_size)
+                        self.gridLines.drawTo(-self.x_size, 0, self.z_size)
 
             # Draw primary grid lines metering y axis if any y-length
-            if (self.YSize != 0):
-
-                if ((self.YSize != 0) and (self.XYPlaneShow != 0)):
+            if self.y_size != 0:
+                if (self.y_size != 0) and (self.xy_plane_show != 0):
                     # Draw x lines across y axis
                     # XY Plane
-                    for y in self.myfrange(0, self.YSize, self.gridStep):
-                        self.gridLines.moveTo(-(self.XSize), y, 0)
-                        self.gridLines.drawTo(self.XSize, y, 0)
-                        self.gridLines.moveTo(-(self.XSize), -y, 0)
-                        self.gridLines.drawTo(self.XSize, -y, 0)
+                    for y in self.myfrange(0, self.y_size, self.gridStep):
+                        self.gridLines.moveTo(-self.x_size, y, 0)
+                        self.gridLines.drawTo(self.x_size, y, 0)
+                        self.gridLines.moveTo(-self.x_size, -y, 0)
+                        self.gridLines.drawTo(self.x_size, -y, 0)
 
-                    if (self.endCapLinesShow != 0):
+                    if self.show_end_cape_lines != 0:
                         # Draw endcap lines
-                        self.gridLines.moveTo(-(self.XSize), self.YSize, 0)
-                        self.gridLines.drawTo(self.XSize, self.YSize, 0)
-                        self.gridLines.moveTo(-(self.XSize), -(self.YSize), 0)
-                        self.gridLines.drawTo(self.XSize, -(self.YSize), 0)
+                        self.gridLines.moveTo(-self.x_size, self.y_size, 0)
+                        self.gridLines.drawTo(self.x_size, self.y_size, 0)
+                        self.gridLines.moveTo(-self.x_size, -self.y_size, 0)
+                        self.gridLines.drawTo(self.x_size, -self.y_size, 0)
 
-                if ((self.ZSize != 0) and (self.YZPlaneShow != 0)):
+                if (self.z_size != 0) and (self.yz_plane_show != 0):
                     # Draw z lines across y axis
                     # YZ Plane
-                    for y in self.myfrange(0, self.YSize, self.gridStep):
-                        self.gridLines.moveTo(0, y, -(self.ZSize))
-                        self.gridLines.drawTo(0, y, self.ZSize)
-                        self.gridLines.moveTo(0, -y, -(self.ZSize))
-                        self.gridLines.drawTo(0, -y, self.ZSize)
+                    for y in self.myfrange(0, self.y_size, self.gridStep):
+                        self.gridLines.moveTo(0, y, -self.z_size)
+                        self.gridLines.drawTo(0, y, self.z_size)
+                        self.gridLines.moveTo(0, -y, -self.z_size)
+                        self.gridLines.drawTo(0, -y, self.z_size)
 
-                    if (self.endCapLinesShow != 0):
+                    if self.show_end_cape_lines != 0:
                         # Draw endcap lines
-                        self.gridLines.moveTo(0, self.YSize, -(self.ZSize))
-                        self.gridLines.drawTo(0, self.YSize, self.ZSize)
-                        self.gridLines.moveTo(0, -(self.YSize), -(self.ZSize))
-                        self.gridLines.drawTo(0, -(self.YSize), self.ZSize)
+                        self.gridLines.moveTo(0, self.y_size, -self.z_size)
+                        self.gridLines.drawTo(0, self.y_size, self.z_size)
+                        self.gridLines.moveTo(0, -self.y_size, -self.z_size)
+                        self.gridLines.drawTo(0, -self.y_size, self.z_size)
 
             # Draw primary grid lines metering z axis if any z-length
-            if (self.ZSize != 0):
-
-                if ((self.XSize != 0) and (self.XZPlaneShow != 0)):
+            if self.z_size != 0:
+                if (self.x_size != 0) and (self.xz_plane_show != 0):
                     # Draw x lines across z axis
                     # XZ Plane
-                    for z in self.myfrange(0, self.ZSize, self.gridStep):
-                        self.gridLines.moveTo(-(self.XSize), 0, z)
-                        self.gridLines.drawTo(self.XSize, 0, z)
-                        self.gridLines.moveTo(-(self.XSize), 0, -z)
-                        self.gridLines.drawTo(self.XSize, 0, -z)
+                    for z in self.myfrange(0, self.z_size, self.gridStep):
+                        self.gridLines.moveTo(-self.x_size, 0, z)
+                        self.gridLines.drawTo(self.x_size, 0, z)
+                        self.gridLines.moveTo(-self.x_size, 0, -z)
+                        self.gridLines.drawTo(self.x_size, 0, -z)
 
-                    if (self.endCapLinesShow != 0):
+                    if self.show_end_cape_lines != 0:
                         # Draw endcap lines
-                        self.gridLines.moveTo(-(self.XSize), 0, self.ZSize)
-                        self.gridLines.drawTo(self.XSize, 0, self.ZSize)
-                        self.gridLines.moveTo(-(self.XSize), 0, -(self.ZSize))
-                        self.gridLines.drawTo(self.XSize, 0, -(self.ZSize))
+                        self.gridLines.moveTo(-(self.x_size), 0, self.z_size)
+                        self.gridLines.drawTo(self.x_size, 0, self.z_size)
+                        self.gridLines.moveTo(-(self.x_size), 0, -(self.z_size))
+                        self.gridLines.drawTo(self.x_size, 0, -(self.z_size))
 
-                if ((self.YSize != 0) and (self.YZPlaneShow != 0)):
+                if (self.y_size != 0) and (self.yz_plane_show != 0):
                     # Draw y lines across z axis
                     # YZ Plane
-                    for z in self.myfrange(0, self.ZSize, self.gridStep):
-                        self.gridLines.moveTo(0, -(self.YSize), z)
-                        self.gridLines.drawTo(0, self.YSize, z)
-                        self.gridLines.moveTo(0, -(self.YSize), -z)
-                        self.gridLines.drawTo(0, self.YSize, -z)
+                    for z in self.myfrange(0, self.z_size, self.gridStep):
+                        self.gridLines.moveTo(0, -(self.y_size), z)
+                        self.gridLines.drawTo(0, self.y_size, z)
+                        self.gridLines.moveTo(0, -(self.y_size), -z)
+                        self.gridLines.drawTo(0, self.y_size, -z)
 
-                    if (self.endCapLinesShow != 0):
+                    if self.show_end_cape_lines != 0:
                         # Draw endcap lines
-                        self.gridLines.moveTo(0, -(self.YSize), self.ZSize)
-                        self.gridLines.drawTo(0, self.YSize, self.ZSize)
-                        self.gridLines.moveTo(0, -(self.YSize), -(self.ZSize))
-                        self.gridLines.drawTo(0, self.YSize, -(self.ZSize))
+                        self.gridLines.moveTo(0, -(self.y_size), self.z_size)
+                        self.gridLines.drawTo(0, self.y_size, self.z_size)
+                        self.gridLines.moveTo(0, -(self.y_size), -(self.z_size))
+                        self.gridLines.drawTo(0, self.y_size, -(self.z_size))
 
         # Check to see if secondary grid lines should be drawn
-        if (self.subdiv != 0):
-
+        if self.sub_divisions != 0:
             # Draw secondary grid lines
-            self.subdivLines.setColor(self.subdivColor)
+            self.subdivLines.setColor(self.sub_div_color)
 
-            if (self.XSize != 0):
-                adjustedstep = self.gridStep / self.subdiv
-                # print(self.gridStep)
-                # print(self.subdiv)
-                # print(adjustedstep)
-                # print(self.gridStep / self.subdiv)
+            if self.x_size != 0:
+                adjustedstep = self.gridStep / self.sub_divisions
+                if (self.y_size != 0) and (self.xy_plane_show != 0):
+                    # Draw y lines across x axis starting from center moving out XY
+                    for x in self.myfrange(0, self.x_size, adjustedstep):
+                        self.subdivLines.moveTo(x, -(self.y_size), 0)
+                        self.subdivLines.drawTo(x, self.y_size, 0)
+                        self.subdivLines.moveTo(-x, -(self.y_size), 0)
+                        self.subdivLines.drawTo(-x, self.y_size, 0)
 
-                if ((self.YSize != 0) and (self.XYPlaneShow != 0)):
-                    # Draw y lines across x axis starting from center moving out
-                    # XY
-                    for x in self.myfrange(0, self.XSize, adjustedstep):
-                        self.subdivLines.moveTo(x, -(self.YSize), 0)
-                        self.subdivLines.drawTo(x, self.YSize, 0)
-                        self.subdivLines.moveTo(-x, -(self.YSize), 0)
-                        self.subdivLines.drawTo(-x, self.YSize, 0)
-
-                if ((self.ZSize != 0) and (self.XZPlaneShow != 0)):
+                if (self.z_size != 0) and (self.xz_plane_show != 0):
                     # Draw z lines across x axis starting from center moving out
                     # XZ
-                    for x in self.myfrange(0, self.XSize, adjustedstep):
-                        self.subdivLines.moveTo(x, 0, -(self.ZSize))
-                        self.subdivLines.drawTo(x, 0, self.ZSize)
-                        self.subdivLines.moveTo(-x, 0, -(self.ZSize))
-                        self.subdivLines.drawTo(-x, 0, self.ZSize)
+                    for x in self.myfrange(0, self.x_size, adjustedstep):
+                        self.subdivLines.moveTo(x, 0, -(self.z_size))
+                        self.subdivLines.drawTo(x, 0, self.z_size)
+                        self.subdivLines.moveTo(-x, 0, -(self.z_size))
+                        self.subdivLines.drawTo(-x, 0, self.z_size)
 
-            if (self.YSize != 0):
+            if self.y_size != 0:
 
-                if ((self.YSize != 0) and (self.XYPlaneShow != 0)):
-                    # Draw x lines across y axis
-                    # XY
-                    for y in self.myfrange(0, self.YSize, adjustedstep):
-                        self.subdivLines.moveTo(-(self.XSize), y, 0)
-                        self.subdivLines.drawTo(self.XSize, y, 0)
-                        self.subdivLines.moveTo(-(self.XSize), -y, 0)
-                        self.subdivLines.drawTo(self.XSize, -y, 0)
+                if (self.y_size != 0) and (self.xy_plane_show != 0):
+                    # Draw x lines across y axis XY
+                    for y in self.myfrange(0, self.y_size, adjustedstep):
+                        self.subdivLines.moveTo(-(self.x_size), y, 0)
+                        self.subdivLines.drawTo(self.x_size, y, 0)
+                        self.subdivLines.moveTo(-(self.x_size), -y, 0)
+                        self.subdivLines.drawTo(self.x_size, -y, 0)
 
-                if ((self.ZSize != 0) and (self.YZPlaneShow != 0)):
+                if (self.z_size != 0) and (self.yz_plane_show != 0):
                     # Draw z lines across y axis
                     # YZ
-                    for y in self.myfrange(0, self.YSize, adjustedstep):
-                        self.subdivLines.moveTo(0, y, -(self.ZSize))
-                        self.subdivLines.drawTo(0, y, self.ZSize)
-                        self.subdivLines.moveTo(0, -y, -(self.ZSize))
-                        self.subdivLines.drawTo(0, -y, self.ZSize)
+                    for y in self.myfrange(0, self.y_size, adjustedstep):
+                        self.subdivLines.moveTo(0, y, -(self.z_size))
+                        self.subdivLines.drawTo(0, y, self.z_size)
+                        self.subdivLines.moveTo(0, -y, -(self.z_size))
+                        self.subdivLines.drawTo(0, -y, self.z_size)
 
-            if (self.ZSize != 0):
+            if self.z_size != 0:
+                if (self.x_size != 0) and (self.xz_plane_show != 0):
+                    # Draw x lines across z axis XZ
+                    for z in self.myfrange(0, self.z_size, adjustedstep):
+                        self.subdivLines.moveTo(-self.x_size, 0, z)
+                        self.subdivLines.drawTo(self.x_size, 0, z)
+                        self.subdivLines.moveTo(-self.x_size, 0, -z)
+                        self.subdivLines.drawTo(self.x_size, 0, -z)
 
-                if ((self.XSize != 0) and (self.XZPlaneShow != 0)):
-                    # Draw x lines across z axis
-                    # XZ
-                    for z in self.myfrange(0, self.ZSize, adjustedstep):
-                        self.subdivLines.moveTo(-(self.XSize), 0, z)
-                        self.subdivLines.drawTo(self.XSize, 0, z)
-                        self.subdivLines.moveTo(-(self.XSize), 0, -z)
-                        self.subdivLines.drawTo(self.XSize, 0, -z)
+                if (self.y_size != 0) and (self.yz_plane_show != 0):
+                    # Draw y lines across z axis YZ
+                    for z in self.myfrange(0, self.z_size, adjustedstep):
+                        self.subdivLines.moveTo(0, -self.y_size, z)
+                        self.subdivLines.drawTo(0, self.y_size, z)
+                        self.subdivLines.moveTo(0, -self.y_size, -z)
+                        self.subdivLines.drawTo(0, self.y_size, -z)
 
-                if ((self.YSize != 0) and (self.YZPlaneShow != 0)):
-                    # Draw y lines across z axis
-                    # YZ
-                    for z in self.myfrange(0, self.ZSize, adjustedstep):
-                        self.subdivLines.moveTo(0, -(self.YSize), z)
-                        self.subdivLines.drawTo(0, self.YSize, z)
-                        self.subdivLines.moveTo(0, -(self.YSize), -z)
-                        self.subdivLines.drawTo(0, self.YSize, -z)
+        if self.x_size != 0:
+            # Draw X axis line
+            self.axisLines.setColor(self.x_axis_color)
+            self.axisLines.moveTo(0, 0, 0)
+            self.axisLines.moveTo(-self.x_size, 0, 0)
+            self.axisLines.drawTo(self.x_size, 0, 0)
+
+        if self.y_size != 0:
+            # Draw Y axis line
+            self.axisLines.setColor(self.y_axis_color)
+            self.axisLines.moveTo(0, -self.y_size, 0)
+            self.axisLines.drawTo(0, self.y_size, 0)
 
         # Create ThreeAxisGrid nodes and nodepaths
         # Create parent node and path

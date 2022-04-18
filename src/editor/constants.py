@@ -1,5 +1,6 @@
 import os
 import wx
+
 from thirdparty.event.observable import Observable
 from editor.utils.exceptionHandler import try_execute, try_execute_1
 from panda3d.core import BitMask32
@@ -71,51 +72,105 @@ class DirectoryEventHandler:
         proj_browser = object_manager.get("ProjectBrowser")
         le = object_manager.get("LevelEditor")
 
+        current_sel = proj_browser.GetSelection()  # save current selected item
+        if current_sel:
+            current_sel = proj_browser.GetItemText(current_sel)
+
         proj_browser.create_or_rebuild_tree("", rebuild_event=True)  # rebuild project files/tree
-        # proj_browser.rebuild_tree()
-        le.load_all_mods(proj_browser.resources["py"])  # reload all user mods and tools
+        le.load_all_mods(proj_browser.resources["py"])  # reload all user mods and editor plugins
+        le.load_text_files(proj_browser.resources["txt"])  # reload all text files
+
+        # select tree item that was previously selected.
+        # TODO replace this a save restore system of graph panel
+        if current_sel in proj_browser.name_to_item.keys():
+            proj_browser.SelectItem(proj_browser.name_to_item[current_sel])
+
+        # update properties panel
+        # DO not call this here, as it is called from le.load_all_mods.
+        # LevelEditorEventHandler.update_properties_panel()
 
 
 class LevelEditorEventHandler:
-    """handler all events emitted by level editor"""
+    """handles all events coming from level editor"""
 
     @staticmethod
     @obs.on("LevelEditorEvent")
     def on_le_event(*args):
+        if args[0] in le_event_handler.keys():
+            le_event_handler[args[0]](*args[1:])
+
+    @staticmethod
+    def on_le_start():
         pass
+
+    @staticmethod
+    def on_scene_start(*args):
+        scene_graph = object_manager.get("SceneGraphPanel")
+        le = object_manager.get("LevelEditor")
+        scene_graph.init(le.scene_render)
+
+    @staticmethod
+    def on_enable_ed_mode(*args):
+        # directory event also reloads editor data
+        # DirectoryEventHandler.on_directory_event()
+
+        scene_graph_panel = object_manager.get("SceneGraphPanel")
+
+        current_sel_np = scene_graph_panel.get_selected_np()  # save current selected np
+
+        # update properties panel data
+        LevelEditorEventHandler.on_xform_task()
+
+        # update SceneGraphPanel panel
+        # TODO replace this with a save and reload state of graph panel...!
+        scene_graph_panel.rebuild(object_manager.get("LevelEditor").scene_render)
+
+        if current_sel_np:
+            scene_graph_panel.SelectItem(scene_graph_panel.np_to_tree_item_map[current_sel_np])
+
+    @staticmethod
+    def on_enable_game_mode(*args):
+        pass
+
+    @staticmethod
+    @obs.on("OnAddNodePath")
+    def on_add_np(nps):
+        scene_graph = object_manager.get("SceneGraphPanel")
+        scene_graph.add_np(nps)
 
     @staticmethod
     @obs.on("UpdatePropertiesPanel")
     def update_properties_panel(*args):
         """update properties panel based on currently selected resource or scene item"""
-
         le = object_manager.get("LevelEditor")
         proj_browser = object_manager.get("ProjectBrowser")
-        prop_panel = object_manager.get("PropertiesPanel")
+        properties_panel = object_manager.get("PropertiesPanel")
+        scene_graph_panel = object_manager.get("SceneGraphPanel")
 
         # update properties panel
-        # check if any tree item is currently selected if yes then show it's updated properties
+
+        # ===================================================================================================== #
+        # first if any user module is selected than update its properties
         selection = proj_browser.GetSelection()
         if selection:
             selection = proj_browser.GetItemText(selection)
             selection = selection.split(".")[0]
-        else:
-            selection = "-1"
 
-        # now make sure that it is a module, also split file name from
-        # extension, level_editor.get_mod_instance takes input object's name without extenison
-        obj = le.get_mod_instance(selection)
-        if obj:
-            prop_panel.reset()
-            prop_panel.layout_object_properties(obj)
-        else:
-            # resets object inspection panel
-            prop_panel.reset()
+        module = le.get_module(selection)
+        if module:
+            properties_panel.layout_object_properties(module, module._name, module.get_properties())
+            return
 
-    @staticmethod
-    @obs.on("ToggleSounds")
-    def toggle_sounds(*args):
-        pass
+        # ===================================================================================================== #
+        # second check if any np is selected, in scene graph panel
+        np = scene_graph_panel.get_selected_np()
+        if np:
+            properties_panel.layout_object_properties(np, np.get_name(), np.get_properties())
+            return
+
+        # ===================================================================================================== #
+        # else resets object inspection panel
+        properties_panel.reset()
 
     @staticmethod
     @obs.on("ToggleSceneLights")
@@ -145,8 +200,8 @@ class LevelEditorEventHandler:
     @staticmethod
     @obs.on("AddCamera")
     def add_camera():
-        print("currently support is limited to only camera per scene...!")
-        # object_manager.get("LevelEditor").add_camera()
+        # print("currently support is limited to only camera per scene...!")
+        object_manager.get("LevelEditor").add_camera()
 
     @staticmethod
     @obs.on("AddObject")
@@ -154,11 +209,20 @@ class LevelEditorEventHandler:
         object_manager.get("LevelEditor").add_object(path)
 
     @staticmethod
-    @obs.on("RemoveNodePath")
-    def delete_object():
+    def on_remove_selected():
         def on_ok(*args):
             le = object_manager.get("LevelEditor")
-            le.remove_selected_nps()
+            scene_graph_panel = object_manager.get("SceneGraphPanel")
+            properties_panel = object_manager.get("PropertiesPanel")
+
+            selections = []
+            for np in le.selection.selected_nps:
+                selections.append(np)
+            le.selection.deselect_all()
+
+            scene_graph_panel.on_remove_nps(selections)
+            le.remove_selected_nps(selections)
+            properties_panel.reset()
 
         wx_main = object_manager.get("WxMain")
         dm = wx_main.dialogue_manager
@@ -168,30 +232,56 @@ class LevelEditorEventHandler:
                          ok_call=on_ok)
 
     @staticmethod
-    @obs.on("NodepathSelected")
-    def np_selected(nps, *args):
+    def on_remove_nodepaths(self):
+        """This event is called after node paths have been removed... for any cleanup operations"""
+        pass
+
+    @staticmethod
+    def np_selected(nps):
         pp = object_manager.get("PropertiesPanel")
-        np = nps[0].getNetPythonTag(TAG_PICKABLE)
 
-        if np is not False:
-            pp.layout_object_properties(np)
+        np = nps[0]
+        pp.layout_object_properties(np, np.get_name(), np.get_properties())
 
-            # also unselect this, since as properties will be displaying in
-            # properties panel as well
-            object_manager.get("ProjectBrowser").UnselectAll()
+        object_manager.get("ProjectBrowser").UnselectAll()
+        object_manager.get("SceneGraphPanel").select_np(nps)
 
     @staticmethod
     @obs.on("DeselectAllNps")
     def deselect_all():
         object_manager.get("PropertiesPanel").reset()
         object_manager.get("ProjectBrowser").UnselectAll()
+        object_manager.get("SceneGraphPanel").deselect_all()
 
     @staticmethod
     @obs.on("XFormTask")
-    def on_xform_task():
+    def on_xform_task(force_update_all=False):
+        """updates properties panel according to currently selected object"""
         pp = object_manager.get("PropertiesPanel")
-        if pp.get_object():
-            pp.update_properties_panel()
+
+        if pp.has_object():
+            pp.update_properties_panel(force_update_all)
+
+
+le_Evt_Start = "OnLevelEditorStart"
+le_Evt_On_Scene_Start = "OnSceneStart"
+le_Evt_On_Add_NodePath = "OnAddNodePath"
+le_Evt_NodePath_Selected = "NodePathSelected"
+le_Evt_Deselect_All = "DeselectAll"
+le_Evt_Remove_NodePaths = "RemoveSelectedNodePaths"
+le_EVT_On_Enable_Ed_Mode = "OnEnableEdMode"
+le_Evt_On_Enable_Game_Mode = "OnEnableGameMode"
+
+
+le_event_handler = {
+                    le_Evt_Start: LevelEditorEventHandler.on_le_start,
+                    le_Evt_On_Scene_Start: LevelEditorEventHandler.on_scene_start,
+                    le_Evt_On_Add_NodePath: LevelEditorEventHandler.on_add_np,
+                    le_Evt_NodePath_Selected: LevelEditorEventHandler.np_selected,
+                    le_Evt_Deselect_All: LevelEditorEventHandler.deselect_all,
+                    le_Evt_Remove_NodePaths: LevelEditorEventHandler.on_remove_selected,
+                    le_EVT_On_Enable_Ed_Mode: LevelEditorEventHandler.on_enable_ed_mode,
+                    le_Evt_On_Enable_Game_Mode: LevelEditorEventHandler.on_enable_game_mode,}
 
 
 class ProjectEventHandler:
@@ -332,7 +422,6 @@ class ProjectEventHandler:
     @obs.on("OnRemoveLibrary")
     def remove_library(lib_path):
         """event called when a library is removed"""
-
         le = object_manager.get("LevelEditor")
         le.project.on_remove_library(lib_path)
         DirectoryEventHandler.on_directory_event()
@@ -340,84 +429,97 @@ class ProjectEventHandler:
     @staticmethod
     @obs.on("CreateAsset")
     def create_asset(_type, path):
-        def create_file(file_name, base_cls=None, py_mod=False, ed_plugin=False):
+        def indent_file(_file, spaces):
+            # add indentation by adding empty spaces
+            for i in range(spaces):
+                _file.write(" ")
 
-            def indent(_file, spaces):
-                # add indentation by adding empty spaces
-                for i in range(spaces):
-                    _file.write(" ")
-
-            cls_name = file_name.split("/")[-1]
-            cls_name = cls_name[0].upper() + cls_name[1:]
-            file_name = file_name[0].lower() + file_name[1:] + ".py"
-
-            with open(file_name, "w") as file:
-
-                file.write("import math\n")
-                file.write("import panda3d.core as p3dCore\n")
-
-                if base_cls:
-                    base_mod = base_cls[0].lower() + base_cls[1:]  # file name as on disk e.g. pModBase
-                    base_cls = base_cls[0].upper() + base_cls[1:]  # class name as PModBase
-                    file.write("from editor.core.{0} import {1}\n\n\n".format(base_mod, base_cls))
-                else:
-                    file.write("\n\n")
-                    base_cls = "object"
+        def write_p3d_module(mod_name, base_class, class_name, _is_ed_plugin=False):
+            with open(path, "w") as file_:
+                file_.write("import math\n")
+                file_.write("import panda3d.core as p3dCore\n")
+                file_.write("from editor.core.{0} import {1}\n\n\n".format(mod_name, base_class))
 
                 # class header and init method
-                file.write("class {0}({1}):".format(cls_name, base_cls))
-                file.write("\n")
-                indent(file, 4)
-                file.write("def __init__(self, *args, **kwargs):\n")
+                file_.write("class {0}({1}):".format(class_name, base_class))
+                file_.write("\n")
+                indent_file(file_, 4)
+                file_.write("def __init__(self, *args, **kwargs):\n")
 
-                if base_cls != "object":
+                indent_file(file_, 8)
+                file_.write(base_class+".__init__(self, *args, **kwargs)\n")
 
-                    indent(file, 8)
+                if _is_ed_plugin:
+                    indent_file(file_, 8)
+                    file_.write("self.is_ed_plugin(True)\n")
 
-                    if ed_plugin:
-                        file.write(base_cls + ".__init__(self, *args, **kwargs)\n")
-                        indent(file, 8)
-                        file.write("self.is_ed_plugin(True)\n\n")
-                    else:
-                        file.write(base_cls + ".__init__(self, *args, **kwargs)\n\n")
+                indent_file(file_, 8)
+                file_.write("# __init__ should not contain anything except for variable declaration...!\n\n")
 
-                    indent(file, 8)
-                    file.write("# __init__ should contain anything except for variable declaration...!\n\n")
+                # write start method
+                indent_file(file_, 4)
+                file_.write("def on_start(self):\n")
+                indent_file(file_, 8)
+                file_.write("# this method is called only once\n")
+                indent_file(file_, 8)
+                file_.write("pass\n\n")
 
-                else:
-                    file.write("pass\n\n")
+                # write update method
+                indent_file(file_, 4)
+                file_.write("def on_update(self):\n")
+                indent_file(file_, 8)
+                file_.write("# this method is called evert frame\n")
+                indent_file(file_, 8)
+                file_.write("pass\n\n")
 
-                if py_mod:
-                    return
+        def write_py_module(class_name, base_class):
+            with open(path, "w") as file_:
+                file_.write("import math\n\n\n")
 
-                start_func_name = "on_start"
+                # class header and init method
+                file_.write("class {0}({1}):".format(class_name, base_class))
+                file_.write("\n")
+                indent_file(file_, 4)
+                file_.write("def __init__(self, *args, **kwargs):\n")
 
-                # write on start method
-                indent(file, 4)
-                file.write("# {0} method is called once\n".format(start_func_name))
-                indent(file, 4)
-                file.write("def {0}(self):\n".format(start_func_name))
-                indent(file, 8)
-                file.write("pass\n\n")
+                indent_file(file_, 8)
+                file_.write("pass\n")
 
-                # write on update method
-                indent(file, 4)
-                file.write("# update method is called every frame\n")
-                indent(file, 4)
-                file.write("def on_update(self):\n")
-                indent(file, 8)
-                file.write("pass\n")
+        # choose a base class depending on _type
+        is_ed_plugin = False
 
-        func = create_file
-
-        if _type == "py_mod":
-            try_execute(func, path, py_mod=True)
-
-        elif _type == "p3d_user_mod":
-            try_execute(func, path, base_cls="pModBase")
+        if _type == "p3d_user_mod":
+            module_name = "pModBase"
+            base_cls = "PModBase"
+            path += ".py"
 
         elif _type == "p3d_ed_tool":
-            try_execute(func, path, base_cls="pModBase", ed_plugin=True)
+            module_name = "pModBase"
+            base_cls = "PModBase"
+            path += ".py"
+            is_ed_plugin = True
+
+        elif _type == "txt_file":
+            path += ".txt"
+            with open(path, "w") as txt_file:
+                txt_file.write("pass\n")
+            return
+
+        else:
+            module_name = "object"
+            base_cls = "object"
+            path += ".py"
+        # ------------------------------------------ #
+
+        cls_name = path.split(".")[0]
+        cls_name = cls_name.split("/")[-1]
+        cls_name = cls_name[0].upper() + cls_name[1:]   # capitalize class name
+
+        # write_to_file(module_name, base_cls, cls_name)
+        if module_name == "object":
+            try_execute(write_py_module, cls_name, base_cls)
+        else:
+            try_execute(write_p3d_module, module_name, base_cls, cls_name, is_ed_plugin)
 
     @staticmethod
     @obs.on("ToolExecutionFailed")
@@ -446,43 +548,76 @@ class WxEventHandler:
 
     @staticmethod
     @obs.on("WxEvent")
-    def on_wx_event(evt_type, **kwargs):
-        if evt_type == "load_resource":
-            WxEventHandler.load_resource(**kwargs)
+    def on_wx_event(*args):
+        if args[0] in wx_event_handler.keys():
+            wx_event_handler[args[0]](*args[1:])
 
     @staticmethod
-    def load_resource(**kwargs):
+    @obs.on("OnNodePathSelected")
+    def on_np_selected(args):
+        le = object_manager.get("LevelEditor")
+        le.selection.set_selected(args, append=len(args) > 1)
+        le.update_gizmo()
+
+        if len(args) > 0:
+            np = args[0]
+            object_manager.get("PropertiesPanel").layout_object_properties(np, np.get_name(), np.get_properties())
+            # unselect this otherwise current ProjectBrowser item won't be selected again
+            object_manager.get("ProjectBrowser").UnselectAll()
+
+    @staticmethod
+    def add_model(*args):
         le = object_manager.get("LevelEditor")
 
-        resource_type = kwargs.pop("resource_type", None)
-        resource_path = kwargs.pop("resource_path", "")
+        model_path = args[0]
+        xx = model_path[len(le.project.project_path)+1:]
+        le.add_nodepath(xx)
 
-        if resource_type is "3d_model":
-            xx = resource_path[len(le.project.project_path)+1:]
-            le.load_model(xx)
+    def add_actor(*args):
+        le = object_manager.get("LevelEditor")
+
+        actor_path = args[0]
+        xx = actor_path[len(le.project.project_path)+1:]
+        le.add_actor(xx)
 
     @staticmethod
     @obs.on("SelectTreeItem")
-    def on_tree_item_select(selections, *args):
+    def on_tree_item_select(selections):
         """event called when a resource item is selected in resource browser"""
+        def on_module_selected(module):
+            scene_graph_panel.deselect_all()
+            le.deselect_all()
+            inspector_panel.layout_object_properties(module, module._name, module.get_properties())
 
-        cls = None
+        def on_txt_file_selected(txt_file):
+            scene_graph_panel.deselect_all()
+            le.deselect_all()
+            inspector_panel.set_text(txt_file)
+
+        le = object_manager.get("LevelEditor")
+        inspector_panel = object_manager.get("PropertiesPanel")
+        scene_graph_panel = object_manager.get("SceneGraphPanel")
 
         for file_name, data in selections:
-            # tree item data can either be a path(string) or a sub-object of a module
-            # if data is a sub-object
-            if type(data) is not str:
-                cls = data
+            # try to get module from level editor
+            name = file_name.split(".")[0]
+
+            if le.is_module(name):
+                # if it's a user module
+                on_module_selected(le.get_module(name))
+
+            elif le.is_text_file(name):
+                # if it's a text file
+                on_txt_file_selected(le.get_text_file(name))
+
             else:
-                # try to get module from level editor
-                name = file_name.split(".")[0]
-                cls = object_manager.get("LevelEditor").get_mod_instance(name)
+                inspector_panel.reset()
 
-        if cls is None:
-            object_manager.get("PropertiesPanel").reset()
-            return
-
-        object_manager.get("PropertiesPanel").layout_object_properties(cls)
+    @staticmethod
+    def reparent_np(src_np, target_np):
+        le = object_manager.get("LevelEditor")
+        if le.reparent_np(src_np, target_np):
+            object_manager.get("SceneGraphPanel").reparent(src_np, target_np)
 
     @staticmethod
     @obs.on("EventWxSize")
@@ -530,15 +665,44 @@ class WxEventHandler:
             print("loaded layout: ", layout)
 
 
+ui_Evt_On_NodePath_Selected = "OnNodePathSelected"
+ui_Evt_Load_Model = "LoadModel"
+ui_Evt_Load_Actor = "LoadActor"
+ui_Evt_Reparent_NodePath = "ReparentNodePath"
+
+
+wx_event_handler = {ui_Evt_On_NodePath_Selected: WxEventHandler.on_np_selected,
+                    ui_Evt_Load_Model: WxEventHandler.add_model,
+                    ui_Evt_Load_Actor: WxEventHandler.add_actor,
+                    ui_Evt_Reparent_NodePath: WxEventHandler.reparent_np}
+
+
+@obs.on("RenameItem")
+def rename_item(np, np_name):
+    def on_ok(*args):
+        le.rename_object(np, args[0])
+        scene_browser.on_item_rename(np, args[0])
+        LevelEditorEventHandler.update_properties_panel()  # to reflect changes in wx-UI
+
+    le = object_manager.get("LevelEditor")
+    scene_browser = object_manager.get("SceneGraphPanel")
+    dm = object_manager.get("WxMain").dialogue_manager
+
+    dm.create_dialog("TextEntryDialog",
+                     "Rename Item", dm, descriptor_text="Rename Selection", ok_call=on_ok,
+                     initial_text=np_name)
+
+
 @obs.on("PropertyModified")
-def property_modified():
-    app = object_manager.get("P3dApp")
-    app.update_gizmo()
+def property_modified(*args):
+    object_manager.get("PropertiesPanel").update_properties_panel(*args)
+    le = object_manager.get("LevelEditor")
+    le.update_gizmo()
 
 
 @obs.on("EvtCloseApp")
 def exit_app(close_wx=True):
-    print("exited")
+    # print("PandaEditor --> GoodBye")
     if close_wx:
         object_manager.get("WxMain").Close()
     object_manager.get("P3dApp").Quit()

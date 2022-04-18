@@ -20,8 +20,8 @@ class Selection(Object):
 
         # Create node picker - set its collision mask to hit both geom nodes
         # and collision nodes
-        bitMask = pm.GeomNode.getDefaultCollideMask() | pm.CollisionNode.getDefaultCollideMask()
-        self.picker = MousePicker('picker', *args, fromCollideMask=bitMask, **kwargs)
+        bit_mask = pm.GeomNode.getDefaultCollideMask() | pm.CollisionNode.getDefaultCollideMask()
+        self.picker = MousePicker('picker', *args, fromCollideMask=bit_mask, **kwargs)
 
     def get_nodepath_under_mouse(self):
         """
@@ -31,8 +31,14 @@ class Selection(Object):
         picked_np = self.picker.GetFirstNodePath()
         return picked_np
 
-    def set_selected(self, nps):
-        self.selected_nps.clear()
+    def set_selected(self, nps, append=False):
+        if type(nps) is not list:
+            print("Selection --> set_selected argument must be of type list")
+            return
+
+        if not append:
+            self.deselect_all()
+
         self.selected_nps = nps
         for np in self.selected_nps:
             np.showTightBounds()
@@ -61,31 +67,32 @@ class Selection(Object):
         """
         self.marquee.Stop()
 
+        new_selection = []
+
         if self.append:
-            pass
-        else:
-            # deselect last selected nps
             for np in self.selected_nps:
-                np.hideBounds()
-            self.selected_nps = []
+                new_selection.append(np)
+        else:
+            self.deselect_all()
 
         for pick_np in self.rootNp.findAllMatches('**'):
             if pick_np is not None:
                 if self.marquee.IsNodePathInside(pick_np) and pick_np.hasNetPythonTag(TAG_PICKABLE):
                     np = pick_np.getNetPythonTag("PICKABLE")
-                    if np not in self.selected_nps:
-                        np.showTightBounds()
-                        self.selected_nps.append(np)
+                    if np not in new_selection:
+                        new_selection.append(np)
 
         # Add any node path which was under the mouse to the selection.
         np = self.get_nodepath_under_mouse()
         if np is not None and np.hasNetPythonTag(TAG_PICKABLE):
             np = np.getNetPythonTag("PICKABLE")
-            if np not in self.selected_nps:
-                np.showTightBounds()
-                self.selected_nps.append(np)
+            if np not in new_selection:
+                new_selection.append(np)
 
-        return self.selected_nps
+        for np in new_selection:
+            self.selected_nps.append(np)
+
+        return new_selection
 
     def update(self):
         pass

@@ -111,8 +111,7 @@ class WxTextEntryDialog(WxCustomDialog):
         panel = wx.Panel(self)
 
         text = wx.StaticText(panel, label=self.descriptor_text)
-        self.wx_text_ctrl = wx.TextCtrl(panel)
-        self.wx_text_ctrl.SetValue(self.initial_text)
+        self.wx_text_ctrl = wx.TextCtrl(panel, value=self.initial_text)
 
         self.ok_button_id = wx.NewId()
         self.cancel_button_id = wx.NewId()

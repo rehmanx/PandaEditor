@@ -21,11 +21,12 @@ class PModBase(DirectObject):
         DirectObject.__init__(self)
 
         self._name = kwargs.pop("name", None)
+        self._win = kwargs.pop("win", None)
+        self._mouse_watcher_node = kwargs.pop("mouse_watcher_node", None)
         self._le = kwargs.pop("level_editor", None)
         self._render = kwargs.pop("render", None)
         self._render2d = kwargs.pop("render2d", None)
-        self._mouse_watcher_node = kwargs.pop("mouse_watcher_node", None)
-        self._win = kwargs.pop("win", None)
+        self._game_cam = kwargs.pop("game_cam", None)
 
         self._task = None
         self._late_task = None
@@ -41,7 +42,8 @@ class PModBase(DirectObject):
         self._hidden_properties = []
         self._properties = []
 
-        # to be discarded attributes
+        # to be discarded variables
+        # these variables will not be saved
         self._discarded_attrs = [
             "_MSGRmessengerId",
 
@@ -151,9 +153,8 @@ class PModBase(DirectObject):
     def get_savable_atts(self):
         attrs = []
         for name, val in self.__dict__.items():
-            if name[0] == "_" or self._discarded_attrs.__contains__(name) or hasattr(PModBase("", None), name):
+            if self._discarded_attrs.__contains__(name) or hasattr(PModBase("", None), name):
                 continue
-
             attrs.append((name, val))
 
         return attrs
@@ -167,6 +168,14 @@ class PModBase(DirectObject):
         self._properties = []
 
         for name, value in self.get_savable_atts():
+            if name in self._hidden_properties:
+                # hidden variables should be ignored
+                continue
+
+            if name[0] == "_":
+                # private variables should be ignored
+                continue
+
             prop = ed_utils.EdProperty.ObjProperty(name=name, value=value, _type=type(value), obj=self)
             self._properties.append(prop)
 
