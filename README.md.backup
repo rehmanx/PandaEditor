@@ -29,10 +29,10 @@ PandaEditor is using the Gizmos package and InfoPanel from another open source p
 
 ### Support
 ## Manual
-* [Starting a new project](https://github.com/rehmanx/PandaEditor/edit/main/README.md#starting-a-new-project "")
-* [Assets management](https://github.com/rehmanx/PandaEditor/edit/main/README.md#assets-management)
-* [Object manipulation](https://github.com/rehmanx/PandaEditor/edit/main/README.md#object-manipulation)
-* [Runtime modules](https://github.com/rehmanx/PandaEditor/edit/main/README.md#runtime-user-modules)
+* [Starting a new project](https://github.com/rehmanx/PandaEditor/blob/main/README.md#starting-a-new-project "")
+* [Assets management](https://github.com/rehmanx/PandaEditor/blob/main/README.md#assets-management)
+* [Object manipulation](https://github.com/rehmanx/PandaEditor/blob/main/README.md#object-manipulation)
+* [Runtime modules](https://github.com/rehmanx/PandaEditor/blob/main/README.md#runtime-user-modules)
 * [Editor plugins](https://github.com/rehmanx/PandaEditor/edit/main/README.md#editor-plugins)
 * [Other]()
 * [Known issues](https://github.com/rehmanx/PandaEditor/edit/main/README.md#known-issues)
@@ -40,7 +40,7 @@ PandaEditor is using the Gizmos package and InfoPanel from another open source p
 
 ### Starting a new project
 When you start PandaEditor a default project with some samples is setup for you.
-Its located in current working directory and should no be deleted. You can use default project for any purpose, however to create a new project go to
+Its located in current working directory and should not be deleted. You can use default project for any purpose, however to create a new project go to
 **_Menubar > Project > Start New Project_** and choose a valid name and path.
 
 ### Assets management

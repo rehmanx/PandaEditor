@@ -29,14 +29,14 @@ PandaEditor is using the Gizmos package and InfoPanel from another open source p
 
 ### Support
 ## Manual
-* [Starting a new project](https://github.com/rehmanx/PandaEditor/edit/main/README.md#starting-a-new-project "")
-* [Assets management](https://github.com/rehmanx/PandaEditor/edit/main/README.md#assets-management)
-* [Object manipulation](https://github.com/rehmanx/PandaEditor/edit/main/README.md#object-manipulation)
-* [Runtime modules](https://github.com/rehmanx/PandaEditor/edit/main/README.md#runtime-user-modules)
-* [Editor plugins](https://github.com/rehmanx/PandaEditor/edit/main/README.md#editor-plugins)
-* [Other]()
-* [Known issues](https://github.com/rehmanx/PandaEditor/edit/main/README.md#known-issues)
-* [Getting started]()
+* [Starting a new project](https://github.com/rehmanx/PandaEditor/blob/main/README.md#starting-a-new-project "")
+* [Assets management](https://github.com/rehmanx/PandaEditor/blob/main/README.md#assets-management)
+* [Object manipulation](https://github.com/rehmanx/PandaEditor/blob/main/README.md#object-manipulation)
+* [Runtime modules](https://github.com/rehmanx/PandaEditor/blob/main/README.md#runtime-user-modules)
+* [Editor plugins](https://github.com/rehmanx/PandaEditor/blob/main/README.md#editor-plugins)
+* [Other](https://github.com/rehmanx/PandaEditor/blob/main/README.md#other)
+* [Known issues](https://github.com/rehmanx/PandaEditor/blob/main/README.md#known-issues)
+* [Getting started](https://github.com/rehmanx/PandaEditor/blob/main/README.md#getting-started)
 
 ### Starting a new project
 When you start PandaEditor a default project with some samples is setup for you.
