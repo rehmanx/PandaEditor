@@ -1,3 +1,5 @@
+# PandaEditor is moved to a new repository [Link](https://github.com/barbarian77/PandaEditor) this repository will soon be archived.
+
 ## A level editor for Panda3d game engine with bare minimum features to provide an editor centric workflow.
 
 ![Image](images//01.png)
